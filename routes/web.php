@@ -7,9 +7,12 @@ Route::get('/', function () {
     return view('welcome');
 })->name('home');
 
+
+// Dashboard route (starter template)
 Route::view('dashboard', 'dashboard')
     ->middleware(['auth', 'verified'])
     ->name('dashboard');
+
 
 Route::middleware(['auth'])->group(function () {
     Route::redirect('settings', 'settings/profile');
@@ -17,12 +20,13 @@ Route::middleware(['auth'])->group(function () {
     Volt::route('settings/profile', 'settings.profile')->name('settings.profile');
     Volt::route('settings/password', 'settings.password')->name('settings.password');
     Volt::route('settings/appearance', 'settings.appearance')->name('settings.appearance');
-    
-    // Integration routes
+
+    // Integrations: list and create (stepper)
+    Route::get('integrations', [\App\Http\Controllers\IntegrationController::class, 'index'])->name('integrations.index');
     Volt::route('integrations/create', 'integration-stepper')->name('integrations.create');
-    
-    // Integration resource routes
-    Route::resource('integrations', \App\Http\Controllers\IntegrationController::class)->except(['create', 'store', 'edit', 'update']);
+
+    // Optionally, add store route if needed for form submission
+    // Route::post('integrations', [\App\Http\Controllers\IntegrationController::class, 'store'])->name('integrations.store');
 });
 
 require __DIR__.'/auth.php';
