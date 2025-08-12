@@ -21,12 +21,11 @@ Route::middleware(['auth'])->group(function () {
     Volt::route('settings/password', 'settings.password')->name('settings.password');
     Volt::route('settings/appearance', 'settings.appearance')->name('settings.appearance');
 
-    // Integrations: list and create (stepper)
+    // Integrations: list, create, show, and delete
     Route::get('integrations', [\App\Http\Controllers\IntegrationController::class, 'index'])->name('integrations.index');
     Volt::route('integrations/create', 'integration-stepper')->name('integrations.create');
-
-    // Optionally, add store route if needed for form submission
-    // Route::post('integrations', [\App\Http\Controllers\IntegrationController::class, 'store'])->name('integrations.store');
+    Route::get('integrations/{integration}', [\App\Http\Controllers\IntegrationController::class, 'show'])->name('integrations.show');
+    Route::delete('integrations/{integration}', [\App\Http\Controllers\IntegrationController::class, 'destroy'])->name('integrations.destroy');
 });
 
 require __DIR__.'/auth.php';

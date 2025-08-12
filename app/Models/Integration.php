@@ -16,6 +16,7 @@ class Integration extends Model
         'integration_name',
         'description',
         'selected_store',
+        'store_details',
         'unique_identifier',
         'identification_type',
         'condition',
@@ -53,6 +54,7 @@ class Integration extends Model
     protected $casts = [
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
+        'store_details' => 'array',
     ];
 
     /**

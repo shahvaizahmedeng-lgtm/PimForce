@@ -12,8 +12,12 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule): void
     {
-        // Run your custom command every 15 minutes
-        $schedule->command('your:custom-command')->everyFifteenMinutes();
+        // Run product sync command every 15 minutes
+        $schedule->command('integrations:sync-products')
+            ->everyFifteenMinutes()
+            ->withoutOverlapping()
+            ->runInBackground()
+            ->appendOutputTo(storage_path('logs/sync-products.log'));
     }
 
     /**

@@ -8,24 +8,39 @@ use Illuminate\Support\Facades\Auth;
 new class extends Component {
     public $currentStep = 1;
     public $steps = [
-        'Template',
-        'API keys', 
-        'Mapping',
-        'Internal field',
-        'Specification',
-        'Let\'s Go 🚀'
+        'Integrate',
+        'Details',
+        'Store', 
+        'Fields',
+        'Specifications',
+        'SEO',
+        'Synchronisations'
     ];
 
     public $integrationName = '';
     public $description = '';
     public $selectedStore = '';
+    public $storeDetails = [
+        'store_name' => '',
+        'store_type' => '',
+        'store_url' => '',
+        'store_description' => ''
+    ];
     public $uniqueIdentifier = '';
-    public $identificationType = 'SKU';
+    public $identificationType = 'SKU-1';
     public $condition = '';
     public $conditionValue = '';
     public $metaTitle = '';
     public $metaDescription = '';
     public $keywords = '';
+    
+    // Properties for dynamic specifications
+    public $specifications = [];
+    public $loadingSpecifications = false;
+    
+    // Properties for dynamic stores
+    public $stores = [];
+    public $loadingStores = false;
     
     // New properties for API keys step
     public $katanaPimUrl = '';
@@ -83,6 +98,7 @@ new class extends Component {
             'integrationName' => $this->integrationName,
             'description' => $this->description,
             'selectedStore' => $this->selectedStore,
+            'storeDetails' => $this->storeDetails,
             'uniqueIdentifier' => $this->uniqueIdentifier,
             'identificationType' => $this->identificationType,
             'condition' => $this->condition,
@@ -114,6 +130,8 @@ new class extends Component {
             'selectValue12' => $this->selectValue12,
             'selectValue13' => $this->selectValue13,
             'selectValue14' => $this->selectValue14,
+            'specifications' => $this->specifications,
+            'stores' => $this->stores,
         ];
         
         session(['integration_draft' => $progress]);
@@ -124,6 +142,12 @@ new class extends Component {
         session()->forget('integration_draft');
         $this->reset();
         $this->currentStep = 1;
+        $this->storeDetails = [
+            'store_name' => '',
+            'store_type' => '',
+            'store_url' => '',
+            'store_description' => ''
+        ];
     }
 
     public function nextStep()
@@ -164,6 +188,19 @@ new class extends Component {
                 break;
                 
             case 2:
+                $rules = ['selectedStore' => 'required'];
+                $messages = ['selectedStore.required' => 'Please select a store.'];
+                
+                if ($this->selectedStore === 'new_store') {
+                    $rules['storeDetails.store_name'] = 'required|min:2';
+                    $messages['storeDetails.store_name.required'] = 'Store name is required for custom stores.';
+                    $messages['storeDetails.store_name.min'] = 'Store name must be at least 2 characters.';
+                }
+                
+                $this->validate($rules, $messages);
+                break;
+                
+            case 3:
                 $this->validate([
                     'katanaPimUrl' => 'required|url',
                     'katanaPimApiKey' => 'required|min:3',
@@ -184,7 +221,7 @@ new class extends Component {
                 ]);
                 break;
                 
-            case 3:
+            case 4:
                 $this->validate([
                     'selectedStore' => 'required',
                 ], [
@@ -192,18 +229,38 @@ new class extends Component {
                 ]);
                 break;
                 
-            case 4:
-                // Step 4 validation is optional as these are mapping fields
-                break;
-                
             case 5:
+                // Step 5 validation for Specifications (Product Condition and SEO)
                 $this->validate([
                     'condition' => 'required',
                     'conditionValue' => 'required_if:condition,other',
+                    'metaTitle' => 'nullable|max:60',
+                    'metaDescription' => 'nullable|max:160',
+                    'keywords' => 'nullable|max:200',
                 ], [
-                    'condition.required' => 'Please select a condition.',
+                    'condition.required' => 'Please select a product condition.',
                     'conditionValue.required_if' => 'Please specify the condition value.',
+                    'metaTitle.max' => 'Meta title cannot exceed 60 characters.',
+                    'metaDescription.max' => 'Meta description cannot exceed 160 characters.',
+                    'keywords.max' => 'Keywords cannot exceed 200 characters.',
                 ]);
+                break;
+                
+            case 6:
+                // Step 6 validation for SEO (additional SEO fields if needed)
+                $this->validate([
+                    'metaTitle' => 'nullable|max:60',
+                    'metaDescription' => 'nullable|max:160',
+                    'keywords' => 'nullable|max:200',
+                ], [
+                    'metaTitle.max' => 'Meta title cannot exceed 60 characters.',
+                    'metaDescription.max' => 'Meta description cannot exceed 160 characters.',
+                    'keywords.max' => 'Keywords cannot exceed 200 characters.',
+                ]);
+                break;
+                
+            case 7:
+                // Step 7 validation is optional as these are final specification fields
                 break;
         }
         
@@ -230,6 +287,7 @@ new class extends Component {
                 'integration_name' => $this->integrationName,
                 'description' => $this->description,
                 'selected_store' => $this->selectedStore,
+                'store_details' => $this->storeDetails,
                 'unique_identifier' => $this->uniqueIdentifier,
                 'identification_type' => $this->identificationType,
                 'condition' => $this->condition,
@@ -271,7 +329,7 @@ new class extends Component {
             session()->flash('message', 'Integration saved successfully!');
             
             // You can redirect to a dashboard or integrations list
-            // return redirect()->route('integrations.index');
+            return redirect()->route('integrations.index');
             
         } catch (\Exception $e) {
             session()->flash('error', 'Failed to save integration: ' . $e->getMessage());
@@ -287,23 +345,46 @@ new class extends Component {
                 return count($filled) / count($fields) * 100;
                 
             case 2:
+                $fields = ['selectedStore'];
+                $filled = array_filter(array_map(fn($field) => !empty($this->$field), $fields));
+                $completion = count($filled) / count($fields) * 100;
+                
+                // If custom store is selected, also check store details
+                if ($this->selectedStore === 'new_store' && !empty($this->selectedStore)) {
+                    $storeFields = ['storeDetails.store_name'];
+                    $storeFilled = array_filter(array_map(fn($field) => !empty(data_get($this, $field)), $storeFields));
+                    $storeCompletion = count($storeFilled) / count($storeFields) * 100;
+                    $completion = ($completion + $storeCompletion) / 2;
+                }
+                
+                return $completion;
+                
+            case 3:
                 $fields = ['katanaPimUrl', 'katanaPimApiKey', 'webshopUrl', 'wooCommerceApiKey', 'wooCommerceApiSecret'];
                 $filled = array_filter(array_map(fn($field) => !empty($this->$field), $fields));
                 return count($filled) / count($fields) * 100;
                 
-            case 3:
+            case 4:
                 $fields = ['selectedStore'];
                 $filled = array_filter(array_map(fn($field) => !empty($this->$field), $fields));
                 return count($filled) / count($fields) * 100;
                 
-            case 4:
-                // Step 4 is optional, so always show as complete if user reaches it
-                return 100;
-                
             case 5:
+                // Step 5 completion for Specifications (Product Condition and SEO)
                 $fields = ['condition'];
                 $filled = array_filter(array_map(fn($field) => !empty($this->$field), $fields));
                 return count($filled) / count($fields) * 100;
+                
+            case 6:
+                // Step 6 completion for SEO (optional fields)
+                $fields = ['metaTitle', 'metaDescription', 'keywords'];
+                $filled = array_filter(array_map(fn($field) => !empty($this->$field), $fields));
+                // SEO fields are optional, so show progress based on filled fields
+                return count($filled) / count($fields) * 100;
+                
+            case 7:
+                // Step 7 is optional, so always show as complete if user reaches it
+                return 100;
                 
             default:
                 return 0;
@@ -313,6 +394,146 @@ new class extends Component {
     public function isStepComplete($step)
     {
         return $this->getStepCompletionStatus($step) >= 100;
+    }
+    
+    /**
+     * Fetch specifications from KatanaPIM API
+     */
+    public function fetchSpecifications()
+    {
+        $this->loadingSpecifications = true;
+        
+        try {
+            // Use the provided API endpoint and key
+            $url = 'https://leenweb.katanapim.com/api/v1/Specifications';
+            $apiKey = 'c26T7NYlHUF9!c3oYErWN6Ehyhe&EGM0uVyEM?UB';
+            
+            $http = \Illuminate\Support\Facades\Http::withHeaders([
+                'ApiKey' => $apiKey,
+                'Accept' => 'application/json',
+            ])->timeout(30);
+            
+            // Disable SSL verification for development environments
+            if (app()->environment('local', 'development')) {
+                $http = $http->withoutVerifying();
+            }
+            
+            $response = $http->get($url);
+            
+            if ($response->successful()) {
+                $data = $response->json();
+                $this->specifications = $data['Items'] ?? [];
+                $this->dispatch('specifications-loaded');
+            } else {
+                $this->addError('specifications', 'Failed to load specifications: ' . $response->status());
+            }
+        } catch (\Exception $e) {
+            $this->addError('specifications', 'Error loading specifications: ' . $e->getMessage());
+        } finally {
+            $this->loadingSpecifications = false;
+        }
+    }
+    
+    /**
+     * Load specifications when step 5 is reached
+     */
+    public function loadSpecificationsIfNeeded()
+    {
+        if ($this->currentStep === 5 && empty($this->specifications)) {
+            $this->fetchSpecifications();
+        }
+    }
+    
+    /**
+     * Fetch stores from KatanaPIM API
+     */
+    public function fetchStores()
+    {
+        $this->loadingStores = true;
+        
+        try {
+            // Use the provided API endpoint and key
+            $url = 'https://leenweb.katanapim.com/api/v1/Store/GetAll';
+            $apiKey = 'c26T7NYlHUF9!c3oYErWN6Ehyhe&EGM0uVyEM?UB';
+            
+            $http = \Illuminate\Support\Facades\Http::withHeaders([
+                'ApiKey' => $apiKey,
+                'Accept' => 'application/json',
+            ])->timeout(30);
+            
+            // Disable SSL verification for development environments
+            if (app()->environment('local', 'development')) {
+                $http = $http->withoutVerifying();
+            }
+            
+            $response = $http->get($url);
+            
+            if ($response->successful()) {
+                $data = $response->json();
+                $this->stores = is_array($data) ? $data : [];
+                $this->dispatch('stores-loaded');
+            } else {
+                $this->addError('stores', 'Failed to load stores: ' . $response->status());
+            }
+        } catch (\Exception $e) {
+            $this->addError('stores', 'Error loading stores: ' . $e->getMessage());
+        } finally {
+            $this->loadingStores = false;
+        }
+    }
+    
+    /**
+     * Load stores when step 2 is reached
+     */
+    public function loadStoresIfNeeded()
+    {
+        if ($this->currentStep === 2 && empty($this->stores)) {
+            $this->fetchStores();
+        }
+    }
+    
+    public function selectStore($storeType)
+    {
+        $this->selectedStore = $storeType;
+        
+        if ($storeType === 'store1') {
+            $this->storeDetails = [
+                'store_name' => 'Store 1',
+                'store_type' => 'main',
+                'store_url' => '',
+                'store_description' => 'Main Online Store'
+            ];
+        } elseif ($storeType === 'store2') {
+            $this->storeDetails = [
+                'store_name' => 'Store 2',
+                'store_type' => 'secondary',
+                'store_url' => '',
+                'store_description' => 'Secondary Store'
+            ];
+        } elseif ($storeType === 'new_store') {
+            $this->storeDetails = [
+                'store_name' => '',
+                'store_type' => '',
+                'store_url' => '',
+                'store_description' => ''
+            ];
+        } elseif (str_starts_with($storeType, 'store_')) {
+            // Handle dynamic stores from API
+            $storeId = str_replace('store_', '', $storeType);
+            $selectedStore = collect($this->stores)->firstWhere('Id', $storeId);
+            
+            if ($selectedStore) {
+                $this->storeDetails = [
+                    'store_name' => $selectedStore['Name'],
+                    'store_type' => 'api_store',
+                    'store_url' => '',
+                    'store_description' => $selectedStore['SystemName'],
+                    'store_id' => $selectedStore['Id']
+                ];
+            }
+        }
+        
+        $this->saveProgress();
     }
 }; ?>
 
@@ -438,7 +659,237 @@ new class extends Component {
                     </div>
 
                 @elseif($currentStep === 2)
-                    <!-- Step 2: API keys -->
+                    <!-- Step 2: Store Selection -->
+                    <div style="display: flex; flex-direction: column; gap: 2rem;" wire:init="loadStoresIfNeeded">
+                        <div>
+                            <h3 style="font-size: 1.125rem; font-weight: 600; color: #111827; margin-bottom: 1rem;">Store Selection</h3>
+                            <p style="color: #6b7280; margin-bottom: 2rem;">Choose the store you want to integrate with KatanaPIM.</p>
+                            
+                            <!-- Load Stores Button -->
+                            <div style="margin-bottom: 1.5rem;">
+                                <button type="button" wire:click="fetchStores" wire:loading.attr="disabled" style="
+                                    padding: 0.5rem 1rem;
+                                    background-color: #3b82f6;
+                                    color: white;
+                                    border: none;
+                                    border-radius: 0.375rem;
+                                    font-size: 0.875rem;
+                                    cursor: pointer;
+                                    margin-bottom: 1rem;
+                                " wire:loading.class="opacity-50">
+                                    <span wire:loading.remove>Load Stores from API</span>
+                                    <span wire:loading>Loading...</span>
+                                </button>
+                                @error('stores') <span style="color: #ef4444; font-size: 0.75rem;">{{ $message }}</span> @enderror
+                            </div>
+                            
+                            @if($selectedStore)
+                                <div style="
+                                    background-color: #f0f9ff; 
+                                    border: 1px solid #0ea5e9; 
+                                    border-radius: 0.5rem; 
+                                    padding: 1rem; 
+                                    margin-bottom: 1.5rem;
+                                ">
+                                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                        <svg style="width: 1.25rem; height: 1.25rem; color: #0ea5e9;" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+                                        </svg>
+                                        <span style="color: #0c4a6e; font-weight: 500;">
+                                            @if($selectedStore === 'new_store')
+                                                Custom store configuration
+                                            @else
+                                                Store selected: {{ $selectedStore }}
+                                            @endif
+                                        </span>
+                                    </div>
+                                </div>
+                            @endif
+                            
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem;">
+                                @if(!empty($stores))
+                                    @foreach($stores as $store)
+                                        <div style="
+                                            border: 2px solid #e5e7eb; 
+                                            border-radius: 0.5rem; 
+                                            padding: 1.5rem; 
+                                            cursor: pointer;
+                                            transition: all 0.2s;
+                                            background-color: white;
+                                        " @if($selectedStore === 'store_' . $store['Id']) style="border-color: #9333ea; background-color: #faf5ff;" @endif wire:click="selectStore('store_{{ $store['Id'] }}')">
+                                            <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
+                                                <div style="
+                                                    width: 3rem; 
+                                                    height: 3rem; 
+                                                    background-color: #dbeafe; 
+                                                    border-radius: 50%; 
+                                                    display: flex; 
+                                                    align-items: center; 
+                                                    justify-content: center;
+                                                ">
+                                                    <svg style="width: 1.5rem; height: 1.5rem; color: #3b82f6;" fill="currentColor" viewBox="0 0 20 20">
+                                                        <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6z"/>
+                                                    </svg>
+                                                </div>
+                                                <div>
+                                                    <h4 style="font-weight: 600; color: #111827; margin: 0;">{{ $store['Name'] }}</h4>
+                                                    <p style="color: #6b7280; font-size: 0.875rem; margin: 0;">{{ $store['SystemName'] }}</p>
+                                                </div>
+                                            </div>
+                                            <p style="color: #6b7280; font-size: 0.875rem; margin: 0;">Store ID: {{ $store['Id'] }}</p>
+                                        </div>
+                                    @endforeach
+                                @else
+                                    <!-- Fallback Store Options -->
+                                    <div style="
+                                        border: 2px solid #e5e7eb; 
+                                        border-radius: 0.5rem; 
+                                        padding: 1.5rem; 
+                                        cursor: pointer;
+                                        transition: all 0.2s;
+                                        background-color: white;
+                                    " @if($selectedStore === 'store1') style="border-color: #9333ea; background-color: #faf5ff;" @endif wire:click="selectStore('store1')">
+                                        <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
+                                            <div style="
+                                                width: 3rem; 
+                                                height: 3rem; 
+                                                background-color: #dbeafe; 
+                                                border-radius: 50%; 
+                                                display: flex; 
+                                                align-items: center; 
+                                                justify-content: center;
+                                            ">
+                                                <svg style="width: 1.5rem; height: 1.5rem; color: #3b82f6;" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6z"/>
+                                                </svg>
+                                            </div>
+                                            <div>
+                                                <h4 style="font-weight: 600; color: #111827; margin: 0;">Store 1</h4>
+                                                <p style="color: #6b7280; font-size: 0.875rem; margin: 0;">Main Online Store</p>
+                                            </div>
+                                        </div>
+                                        <p style="color: #6b7280; font-size: 0.875rem; margin: 0;">Primary e-commerce store for your products</p>
+                                    </div>
+                                    
+                                    <div style="
+                                        border: 2px solid #e5e7eb; 
+                                        border-radius: 0.5rem; 
+                                        padding: 1.5rem; 
+                                        cursor: pointer;
+                                        transition: all 0.2s;
+                                        background-color: white;
+                                    " @if($selectedStore === 'store2') style="border-color: #9333ea; background-color: #faf5ff;" @endif wire:click="selectStore('store2')">
+                                        <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
+                                            <div style="
+                                                width: 3rem; 
+                                                height: 3rem; 
+                                                background-color: #fef3c7; 
+                                                border-radius: 50%; 
+                                                display: flex; 
+                                                align-items: center; 
+                                                justify-content: center;
+                                            ">
+                                                <svg style="width: 1.5rem; height: 1.5rem; color: #f59e0b;" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6z"/>
+                                                </svg>
+                                            </div>
+                                            <div>
+                                                <h4 style="font-weight: 600; color: #111827; margin: 0;">Store 2</h4>
+                                                <p style="color: #6b7280; font-size: 0.875rem; margin: 0;">Secondary Store</p>
+                                            </div>
+                                        </div>
+                                        <p style="color: #6b7280; font-size: 0.875rem; margin: 0;">Secondary store for specific product categories</p>
+                                    </div>
+                                @endif
+                            </div>
+                            
+                            @error('selectedStore') 
+                                <div style="color: #ef4444; font-size: 0.875rem; margin-top: 1rem;">
+                                    {{ $message }}
+                                </div>
+                            @enderror
+                            
+                            <!-- Custom Store Details Form -->
+                            <!-- @if($selectedStore === 'new_store')
+                                <div style="
+                                    background-color: white; 
+                                    border: 1px solid #e5e7eb; 
+                                    border-radius: 0.5rem; 
+                                    padding: 1.5rem; 
+                                    margin-top: 2rem;
+                                ">
+                                    <h4 style="font-size: 1rem; font-weight: 600; color: #111827; margin-bottom: 1.5rem;">Custom Store Details</h4>
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                                        <div>
+                                            <label style="display: block; font-size: 0.875rem; font-weight: 500; color: #374151; margin-bottom: 0.5rem;">
+                                                Store Name *
+                                            </label>
+                                            <input wire:model="storeDetails.store_name" type="text" placeholder="Enter store name" style="
+                                                width: 100%; 
+                                                padding: 0.75rem; 
+                                                border: 1px solid #d1d5db; 
+                                                border-radius: 0.375rem; 
+                                                font-size: 0.875rem;
+                                                background-color: white;
+                                            ">
+                                            @error('storeDetails.store_name') <span style="color: #ef4444; font-size: 0.75rem;">{{ $message }}</span> @enderror
+                                        </div>
+                                        <div>
+                                            <label style="display: block; font-size: 0.875rem; font-weight: 500; color: #374151; margin-bottom: 0.5rem;">
+                                                Store Type
+                                            </label>
+                                            <select wire:model="storeDetails.store_type" style="
+                                                width: 100%; 
+                                                padding: 0.75rem; 
+                                                border: 1px solid #d1d5db; 
+                                                border-radius: 0.375rem; 
+                                                font-size: 0.875rem;
+                                                background-color: white;
+                                            ">
+                                                <option value="">Select store type</option>
+                                                <option value="main">Main Store</option>
+                                                <option value="secondary">Secondary Store</option>
+                                                <option value="marketplace">Marketplace</option>
+                                                <option value="wholesale">Wholesale</option>
+                                                <option value="other">Other</option>
+                                            </select>
+                                        </div>
+                                        <div style="grid-column: 1 / -1;">
+                                            <label style="display: block; font-size: 0.875rem; font-weight: 500; color: #374151; margin-bottom: 0.5rem;">
+                                                Store URL
+                                            </label>
+                                            <input wire:model="storeDetails.store_url" type="url" placeholder="Enter store URL (optional)" style="
+                                                width: 100%; 
+                                                padding: 0.75rem; 
+                                                border: 1px solid #d1d5db; 
+                                                border-radius: 0.375rem; 
+                                                font-size: 0.875rem;
+                                                background-color: white;
+                                            ">
+                                        </div>
+                                        <div style="grid-column: 1 / -1;">
+                                            <label style="display: block; font-size: 0.875rem; font-weight: 500; color: #374151; margin-bottom: 0.5rem;">
+                                                Store Description
+                                            </label>
+                                            <textarea wire:model="storeDetails.store_description" placeholder="Enter store description (optional)" style="
+                                                width: 100%; 
+                                                padding: 0.75rem; 
+                                                border: 1px solid #d1d5db; 
+                                                border-radius: 0.375rem; 
+                                                font-size: 0.875rem;
+                                                background-color: white;
+                                                resize: vertical;
+                                                min-height: 2.5rem;
+                                            "></textarea>
+                                        </div>
+                                    </div>
+                                </div>
+                            @endif -->
+                        </div>
+                    </div>
+
+                @elseif($currentStep === 3)
+                    <!-- Step 3: API keys -->
                     <div style="display: flex; flex-direction: column; gap: 2rem;">
                         <!-- KatanaPIM Section -->
                         <div style="
@@ -535,665 +986,456 @@ new class extends Component {
                         </div>
                     </div>
 
-                @elseif($currentStep === 3)
-                    <!-- Step 3: Mapping -->
+                @elseif($currentStep === 4)
+                    <!-- Step 4: Fields -->
                     <div style="display: flex; flex-direction: column; gap: 2rem;">
                         <div>
-                            <h3 style="font-size: 1.125rem; font-weight: 600; color: #111827; margin-bottom: 1rem;">Store Mapping</h3>
+                            <h3 style="font-size: 1.125rem; font-weight: 600; color: #111827; margin-bottom: 1rem;">Fields</h3>
+                            <p style="color: #6b7280; margin-bottom: 2rem;">Map internal fields to external data sources.</p>
+                            
+                            <!-- Unique Identifier Section -->
+                            <div style="margin-bottom: 2rem;">
+                                <h4 style="font-size: 1rem; font-weight: 600; color: #111827; margin-bottom: 1rem;">Unique Identifier</h4>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
                             <div>
                                 <label style="display: block; font-size: 0.875rem; font-weight: 500; color: #374151; margin-bottom: 0.5rem;">
-                                    Store *
+                                            Unique Identifier
                                 </label>
-                                <select wire:model="selectedStore" style="
+                                        <input wire:model="uniqueIdentifier" type="text" placeholder="Product ID" value="Product ID" style="
                                     width: 100%; 
-                                    padding: 0.5rem 0.75rem; 
+                                            padding: 0.75rem; 
                                     border: 1px solid #d1d5db; 
                                     border-radius: 0.375rem; 
                                     font-size: 0.875rem;
+                                            background-color: white;
                                 ">
-                                    <option value="">Select store</option>
-                                    <option value="store1">Store 1</option>
-                                    <option value="store2">Store 2</option>
-                                </select>
-                                @error('selectedStore') <span style="color: #ef4444; font-size: 0.75rem;">{{ $message }}</span> @enderror
                             </div>
-                        </div>
-
-                        <div>
-                            <h3 style="font-size: 1.125rem; font-weight: 600; color: #111827; margin-bottom: 1rem;">Unique Identifier</h3>
-                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
                                 <div>
                                     <label style="display: block; font-size: 0.875rem; font-weight: 500; color: #374151; margin-bottom: 0.5rem;">
                                         Identification Type
                                     </label>
                                     <select wire:model="identificationType" style="
                                         width: 100%; 
-                                        padding: 0.5rem 0.75rem; 
+                                            padding: 0.75rem; 
                                         border: 1px solid #d1d5db; 
                                         border-radius: 0.375rem; 
                                         font-size: 0.875rem;
+                                            background-color: white;
                                     ">
-                                        <option value="SKU">SKU</option>
-                                        <option value="GTIN">GTIN</option>
-                                        <option value="ExternalKey">External Key</option>
+                                            <option value="SKU-1" selected>SKU-1</option>
                                     </select>
                                 </div>
+                                </div>
+                            </div>
+
+                            <!-- Internal Fields Section -->
                                 <div>
-                                    <label style="display: block; font-size: 0.875rem; font-weight: 500; color: #374151; margin-bottom: 0.5rem;">
-                                        Unique Identifier
-                                    </label>
-                                    <input wire:model="uniqueIdentifier" type="text" placeholder="Enter unique identifier" style="
-                                        width: 100%; 
-                                        padding: 0.75rem; 
+                                <h4 style="font-size: 1rem; font-weight: 600; color: #111827; margin-bottom: 1rem;">Internal Fields</h4>
+                                <div style="display: flex; flex-direction: column; gap: 1rem;">
+                                    <!-- Field mappings -->
+                                    <div style="display: grid; grid-template-columns: 1fr auto auto; gap: 1rem; align-items: center;">
+                                        <span style="font-size: 0.875rem; color: #374151;">Name</span>
+                                        <select wire:model="selectValue1" style="
+                                            padding: 0.5rem; 
                                         border: 1px solid #d1d5db; 
                                         border-radius: 0.375rem; 
                                         font-size: 0.875rem;
                                         background-color: white;
-                                    ">
+                                            min-width: 250px;
+                                        ">
+                                            <option value="SKU-1">SKU-1</option>
+                                        </select>
+                                        <button type="button" style="
+                                            background: none; 
+                                            border: none; 
+                                            color: #ef4444; 
+                                            cursor: pointer;
+                                            padding: 0.25rem;
+                                        ">✕</button>
                                 </div>
+                                    
+                                    <div style="display: grid; grid-template-columns: 1fr auto auto; gap: 1rem; align-items: center;">
+                                        <span style="font-size: 0.875rem; color: #374151;">Description</span>
+                                        <select wire:model="selectValue2" style="
+                                            padding: 0.5rem; 
+                                            border: 1px solid #d1d5db; 
+                                            border-radius: 0.375rem; 
+                                            font-size: 0.875rem;
+                                            background-color: white;
+                                            min-width: 250px;
+                                        ">
+                                            <option value="SKU-1">SKU-1</option>
+                                        </select>
+                                        <button type="button" style="
+                                            background: none; 
+                                            border: none; 
+                                            color: #ef4444; 
+                                            cursor: pointer;
+                                            padding: 0.25rem;
+                                        ">✕</button>
                             </div>
+                                    
+                                    <div style="display: grid; grid-template-columns: 1fr auto auto; gap: 1rem; align-items: center;">
+                                        <span style="font-size: 0.875rem; color: #374151;">Price</span>
+                                        <select wire:model="selectValue3" style="
+                                            padding: 0.5rem; 
+                                            border: 1px solid #d1d5db; 
+                                            border-radius: 0.375rem; 
+                                            font-size: 0.875rem;
+                                            background-color: white;
+                                            min-width: 250px;
+                                        ">
+                                            <option value="">Select value</option>
+                                            <option value="price">Price</option>
+                                            <option value="cost">Cost</option>
+                                        </select>
+                                        <button type="button" style="
+                                            background: none; 
+                                            border: none; 
+                                            color: #ef4444; 
+                                            cursor: pointer;
+                                            padding: 0.25rem;
+                                        ">✕</button>
                         </div>
+                                    
+                                    <div style="display: grid; grid-template-columns: 1fr auto auto; gap: 1rem; align-items: center;">
+                                        <span style="font-size: 0.875rem; color: #374151;">Quantity</span>
+                                        <select wire:model="selectValue4" style="
+                                            padding: 0.5rem; 
+                                            border: 1px solid #d1d5db; 
+                                            border-radius: 0.375rem; 
+                                            font-size: 0.875rem;
+                                            background-color: white;
+                                            min-width: 250px;
+                                        ">
+                                            <option value="SKU-1">SKU-1</option>
+                                        </select>
+                                        <button type="button" style="
+                                            background: none; 
+                                            border: none; 
+                                            color: #ef4444; 
+                                            cursor: pointer;
+                                            padding: 0.25rem;
+                                        ">✕</button>
                     </div>
 
-                @elseif($currentStep === 4)
-                    <!-- Step 4: Internal field -->
-                    <div style="display: flex; flex-direction: column; gap: 2rem;">
-                        <div>
-                            <h3 style="font-size: 1.125rem; font-weight: 600; color: #111827; margin-bottom: 1rem;">Unique identifier</h3>
-                            <div style="display: flex; flex-direction: column; gap: 1rem; margin-bottom: 2rem;">
-                                <div>
-                                    <label style="display: block; font-size: 0.875rem; font-weight: 500; color: #374151; margin-bottom: 0.5rem;">
-                                        SKU / Externalkey / GTIN
-                                    </label>
-                                    <div style="
-                                        padding: 0.5rem 0.75rem; 
-                                        border: 1px solid #e5e7eb; 
-                                        border-radius: 0.375rem; 
-                                        font-size: 0.875rem;
-                                        background-color: #f9fafb;
-                                        color: #374151;
-                                        position: relative;
-                                        min-height: 2.5rem;
-                                        display: flex;
-                                        align-items: center;
-                                    ">
-                                        SKU-1
-                                        <svg style="width: 1rem; height: 1rem; position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%); color: #6b7280;" fill="currentColor" viewBox="0 0 20 20">
-                                            <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/>
-                                        </svg>
+                                    <div style="display: grid; grid-template-columns: 1fr auto auto; gap: 1rem; align-items: center;">
+                                        <span style="font-size: 0.875rem; color: #374151;">Category</span>
+                                        <select wire:model="selectValue5" style="
+                                            padding: 0.5rem; 
+                                            border: 1px solid #d1d5db; 
+                                            border-radius: 0.375rem; 
+                                            font-size: 0.875rem;
+                                            background-color: white;
+                                            min-width: 250px;
+                                        ">
+                                            <option value="SKU-1">SKU-1</option>
+                                        </select>
+                                        <button type="button" style="
+                                            background: none; 
+                                            border: none; 
+                                            color: #ef4444; 
+                                            cursor: pointer;
+                                            padding: 0.25rem;
+                                        ">✕</button>
                                     </div>
-                                </div>
-                                <div>
-                                    <label style="display: block; font-size: 0.875rem; font-weight: 500; color: #374151; margin-bottom: 0.5rem;">
-                                        Artikelcode (SKU)
-                                    </label>
-                                    <div style="
-                                        padding: 0.5rem 0.75rem; 
-                                        border: 1px solid #e5e7eb; 
-                                        border-radius: 0.375rem; 
-                                        font-size: 0.875rem;
-                                        background-color: #f9fafb;
-                                        color: #374151;
-                                        position: relative;
-                                        min-height: 2.5rem;
-                                        display: flex;
-                                        align-items: center;
-                                    ">
-                                        SKU-1
-                                        <svg style="width: 1rem; height: 1rem; position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%); color: #6b7280;" fill="currentColor" viewBox="0 0 20 20">
-                                            <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/>
-                                        </svg>
+                                    
+                                    <div style="display: grid; grid-template-columns: 1fr auto auto; gap: 1rem; align-items: center;">
+                                        <span style="font-size: 0.875rem; color: #374151;">Brand</span>
+                                        <select wire:model="selectValue6" style="
+                                            padding: 0.5rem; 
+                                            border: 1px solid #d1d5db; 
+                                            border-radius: 0.375rem; 
+                                            font-size: 0.875rem;
+                                            background-color: white;
+                                            min-width: 250px;
+                                        ">
+                                            <option value="SKU-1">SKU-1</option>
+                                        </select>
+                                        <button type="button" style="
+                                            background: none; 
+                                            border: none; 
+                                            color: #ef4444; 
+                                    cursor: pointer;
+                                            padding: 0.25rem;
+                                        ">✕</button>
                                     </div>
-                                </div>
-                            </div>
-                            
-                            <h3 style="font-size: 1.125rem; font-weight: 600; color: #111827; margin-bottom: 1rem;">Internal fields</h3>
-                            <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 2rem; align-items: start;">
-                                <!-- Left Column: Field Labels -->
-                                <div style="display: flex; flex-direction: column; gap: 1rem;">
-                                    <div style="font-weight: 600; color: #374151; height: 4rem; display: flex; align-items: flex-start; padding-top: 0.5rem;">Name</div>
-                                    <div style="font-weight: 600; color: #374151; height: 4rem; display: flex; align-items: flex-start; padding-top: 0.5rem;">GTIN</div>
-                                    <div style="font-weight: 600; color: #374151; height: 4rem; display: flex; align-items: flex-start; padding-top: 0.5rem;">Short description</div>
-                                    <div style="font-weight: 600; color: #374151; height: 4rem; display: flex; align-items: flex-start; padding-top: 0.5rem;">Long description</div>
-                                    <div style="font-weight: 600; color: #374151; height: 4rem; display: flex; align-items: flex-start; padding-top: 0.5rem;">Tax category</div>
-                                    <div style="font-weight: 600; color: #374151; height: 4rem; display: flex; align-items: flex-start; padding-top: 0.5rem;">Manufacturer</div>
-                                    <div style="font-weight: 600; color: #374151; height: 4rem; display: flex; align-items: flex-start; padding-top: 0.5rem;">Manufacturer Part Number</div>
-                                    <div style="font-weight: 600; color: #374151; height: 4rem; display: flex; align-items: flex-start; padding-top: 0.5rem;">Price</div>
-                                    <div style="font-weight: 600; color: #374151; height: 4rem; display: flex; align-items: flex-start; padding-top: 0.5rem;">Old Price</div>
-                                    <div style="font-weight: 600; color: #374151; height: 4rem; display: flex; align-items: flex-start; padding-top: 0.5rem;">Special Price</div>
-                                    <div style="font-weight: 600; color: #374151; height: 4rem; display: flex; align-items: flex-start; padding-top: 0.5rem;">Product cost</div>
-                                    <div style="font-weight: 600; color: #374151; height: 4rem; display: flex; align-items: flex-start; padding-top: 0.5rem;">Stock quantity</div>
-                                    <div style="font-weight: 600; color: #374151; height: 4rem; display: flex; align-items: flex-start; padding-top: 0.5rem;">Available Start Date</div>
-                                    <div style="font-weight: 600; color: #374151; height: 4rem; display: flex; align-items: flex-start; padding-top: 0.5rem;">Available End Date</div>
+                                    
+                                    <div style="display: grid; grid-template-columns: 1fr auto auto; gap: 1rem; align-items: center;">
+                                        <span style="font-size: 0.875rem; color: #374151;">Weight</span>
+                                        <select wire:model="selectValue7" style="
+                                            padding: 0.5rem; 
+                                            border: 1px solid #d1d5db; 
+                                            border-radius: 0.375rem; 
+                                            font-size: 0.875rem;
+                                    background-color: white;
+                                            min-width: 250px;
+                                        ">
+                                            <option value="SKU-1">SKU-1</option>
+                                        </select>
+                                        <button type="button" style="
+                                            background: none; 
+                                            border: none; 
+                                            color: #ef4444; 
+                                            cursor: pointer;
+                                            padding: 0.25rem;
+                                        ">✕</button>
+                                        </div>
+                                    
+                                    <div style="display: grid; grid-template-columns: 1fr auto auto; gap: 1rem; align-items: center;">
+                                        <span style="font-size: 0.875rem; color: #374151;">Length</span>
+                                        <select wire:model="selectValue8" style="
+                                            padding: 0.5rem; 
+                                            border: 1px solid #d1d5db; 
+                                            border-radius: 0.375rem; 
+                                            font-size: 0.875rem;
+                                            background-color: white;
+                                            min-width: 250px;
+                                        ">
+                                            <option value="SKU-1">SKU-1</option>
+                                        </select>
+                                        <button type="button" style="
+                                            background: none; 
+                                            border: none; 
+                                            color: #ef4444; 
+                                            cursor: pointer;
+                                            padding: 0.25rem;
+                                        ">✕</button>
+                                        </div>
+                                    
+                                    <div style="display: grid; grid-template-columns: 1fr auto auto; gap: 1rem; align-items: center;">
+                                        <span style="font-size: 0.875rem; color: #374151;">Width</span>
+                                        <select wire:model="selectValue9" style="
+                                            padding: 0.5rem; 
+                                            border: 1px solid #d1d5db; 
+                                            border-radius: 0.375rem; 
+                                            font-size: 0.875rem;
+                                            background-color: white;
+                                            min-width: 250px;
+                                        ">
+                                            <option value="SKU-1">SKU-1</option>
+                                        </select>
+                                        <button type="button" style="
+                                            background: none; 
+                                            border: none; 
+                                            color: #ef4444; 
+                                            cursor: pointer;
+                                            padding: 0.25rem;
+                                        ">✕</button>
                                 </div>
                                 
-                                <!-- Right Column: Value Selectors + Select Value Dropdowns (Stacked) -->
-                                <div style="display: flex; flex-direction: column; gap: 1rem; height: 100%;">
-                                    <!-- Row 1: Name -->
-                                    <div style="display: flex; flex-direction: column; gap: 0.5rem; height: 4rem; justify-content: center;">
-                                        <div style="
-                                            padding: 0.5rem 0.75rem; 
-                                            border: 1px solid #e5e7eb; 
+                                    <div style="display: grid; grid-template-columns: 1fr auto auto; gap: 1rem; align-items: center;">
+                                        <span style="font-size: 0.875rem; color: #374151;">Height</span>
+                                        <select wire:model="selectValue10" style="
+                                            padding: 0.5rem; 
+                                            border: 1px solid #d1d5db; 
                                             border-radius: 0.375rem; 
                                             font-size: 0.875rem;
-                                            background-color: #f9fafb;
-                                            color: #374151;
-                                            position: relative;
-                                            min-height: 2.5rem;
-                                            display: flex;
-                                            align-items: center;
+                                            background-color: white;
+                                            min-width: 250px;
                                         ">
-                                            Settings → General → Name in KatanaPIM
-                                            <svg style="width: 1rem; height: 1rem; position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%); color: #6b7280;" fill="currentColor" viewBox="0 0 20 20">
-                                                <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/>
-                                            </svg>
-                                        </div>
-                                        <div>
-                                            <label style="display: block; font-size: 0.875rem; color: #374151; margin-bottom: 0.5rem;">Select value</label>
-                                            <select wire:model="selectValue1" style="
-                                                width: 100%;
-                                                padding: 0.5rem 0.75rem; 
-                                                border: 2px solid #9333ea; 
-                                                border-radius: 0.375rem; 
-                                                font-size: 0.875rem;
-                                                background-color: white;
-                                                color: #374151;
-                                            ">
-                                                <option value="">Select value</option>
-                                                <option value="SKU-1">SKU-1</option>
-                                                <option value="SKU-2">SKU-2</option>
-                                            </select>
-                                        </div>
+                                            <option value="SKU-1">SKU-1</option>
+                                        </select>
+                                        <button type="button" style="
+                                            background: none; 
+                                            border: none; 
+                                            color: #ef4444; 
+                                    cursor: pointer;
+                                            padding: 0.25rem;
+                                        ">✕</button>
                                     </div>
                                     
-                                    <!-- Row 2: GTIN -->
-                                    <div style="display: flex; flex-direction: column; gap: 0.5rem; height: 4rem; justify-content: center;">
-                                        <div style="
-                                            padding: 0.5rem 0.75rem; 
-                                            border: 1px solid #e5e7eb; 
+                                    <div style="display: grid; grid-template-columns: 1fr auto auto; gap: 1rem; align-items: center;">
+                                        <span style="font-size: 0.875rem; color: #374151;">Image URL</span>
+                                        <select wire:model="selectValue11" style="
+                                            padding: 0.5rem; 
+                                            border: 1px solid #d1d5db; 
                                             border-radius: 0.375rem; 
                                             font-size: 0.875rem;
-                                            background-color: #f9fafb;
-                                            color: #374151;
-                                            position: relative;
-                                            min-height: 2.5rem;
-                                            display: flex;
-                                            align-items: center;
+                                    background-color: white;
+                                            min-width: 250px;
                                         ">
-                                            Settings → General → GTIN in KatanaPIM
-                                            <svg style="width: 1rem; height: 1rem; position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%); color: #6b7280;" fill="currentColor" viewBox="0 0 20 20">
-                                                <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/>
-                                            </svg>
-                                        </div>
-                                        <div>
-                                            <label style="display: block; font-size: 0.875rem; color: #374151; margin-bottom: 0.5rem;">Select value</label>
-                                            <select wire:model="selectValue2" style="
-                                                width: 100%;
-                                                padding: 0.5rem 0.75rem; 
-                                                border: 2px solid #ef4444; 
-                                                border-radius: 0.375rem; 
-                                                font-size: 0.875rem;
-                                                background-color: white;
-                                                color: #374151;
-                                            ">
-                                                <option value="">Select value</option>
-                                                <option value="SKU-1">SKU-1</option>
-                                                <option value="SKU-2">SKU-2</option>
-                                            </select>
-                                        </div>
-                                        <div style="color: #ef4444; font-size: 0.75rem; margin-top: -0.5rem;">Error description</div>
+                                            <option value="SKU-1">SKU-1</option>
+                                        </select>
+                                        <button type="button" style="
+                                            background: none; 
+                                            border: none; 
+                                            color: #ef4444; 
+                                            cursor: pointer;
+                                            padding: 0.25rem;
+                                        ">✕</button>
+                                </div>
+                                
+                                    <div style="display: grid; grid-template-columns: 1fr auto auto; gap: 1rem; align-items: center;">
+                                        <span style="font-size: 0.875rem; color: #374151;">Product URL</span>
+                                        <select wire:model="selectValue12" style="
+                                            padding: 0.5rem; 
+                                            border: 1px solid #d1d5db; 
+                                            border-radius: 0.375rem; 
+                                            font-size: 0.875rem;
+                                            background-color: white;
+                                            min-width: 250px;
+                                        ">
+                                            <option value="SKU-1">SKU-1</option>
+                                        </select>
+                                        <button type="button" style="
+                                            background: none; 
+                                            border: none; 
+                                            color: #ef4444; 
+                                    cursor: pointer;
+                                            padding: 0.25rem;
+                                        ">✕</button>
                                     </div>
                                     
-                                    <!-- Row 3: Short description -->
-                                    <div style="display: flex; flex-direction: column; gap: 0.5rem; height: 4rem; justify-content: center;">
-                                        <div style="
-                                            padding: 0.5rem 0.75rem; 
-                                            border: 1px solid #e5e7eb; 
+                                    <div style="display: grid; grid-template-columns: 1fr auto auto; gap: 1rem; align-items: center;">
+                                        <span style="font-size: 0.875rem; color: #374151;">Status</span>
+                                        <select wire:model="selectValue13" style="
+                                            padding: 0.5rem; 
+                                            border: 1px solid #d1d5db; 
                                             border-radius: 0.375rem; 
                                             font-size: 0.875rem;
-                                            background-color: #f9fafb;
-                                            color: #374151;
-                                            position: relative;
-                                            min-height: 2.5rem;
-                                            display: flex;
-                                            align-items: center;
+                                            background-color: white;
+                                            min-width: 250px;
                                         ">
-                                            Settings → General → Short description in KatanaPIM
-                                            <svg style="width: 1rem; height: 1rem; position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%); color: #6b7280;" fill="currentColor" viewBox="0 0 20 20">
-                                                <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/>
-                                            </svg>
-                                        </div>
-                                        <div>
-                                            <label style="display: block; font-size: 0.875rem; color: #374151; margin-bottom: 0.5rem;">Select value</label>
-                                            <select wire:model="selectValue3" style="
-                                                width: 100%;
-                                                padding: 0.5rem 0.75rem; 
-                                                border: 2px solid #9333ea; 
-                                                border-radius: 0.375rem; 
-                                                font-size: 0.875rem;
-                                                background-color: white;
-                                                color: #374151;
-                                            ">
-                                                <option value="">Select value</option>
-                                                <option value="SKU-1">SKU-1</option>
-                                                <option value="SKU-2">SKU-2</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                    
-                                    <!-- Row 4: Long description -->
-                                    <div style="display: flex; flex-direction: column; gap: 0.5rem; height: 4rem; justify-content: center;">
-                                        <div style="
-                                            padding: 0.5rem 0.75rem; 
-                                            border: 1px solid #e5e7eb; 
-                                            border-radius: 0.375rem; 
-                                            font-size: 0.875rem;
-                                            background-color: #f9fafb;
-                                            color: #374151;
-                                            position: relative;
-                                            min-height: 2.5rem;
-                                            display: flex;
-                                            align-items: center;
-                                        ">
-                                            Settings → General → Long description in KatanaPIM
-                                            <svg style="width: 1rem; height: 1rem; position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%); color: #6b7280;" fill="currentColor" viewBox="0 0 20 20">
-                                                <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/>
-                                            </svg>
-                                        </div>
-                                        <div>
-                                            <label style="display: block; font-size: 0.875rem; color: #374151; margin-bottom: 0.5rem;">Select value</label>
-                                            <select wire:model="selectValue4" style="
-                                                width: 100%;
-                                                padding: 0.5rem 0.75rem; 
-                                                border: 2px solid #9333ea; 
-                                                border-radius: 0.375rem; 
-                                                font-size: 0.875rem;
-                                                background-color: white;
-                                                color: #374151;
-                                            ">
-                                                <option value="">Select value</option>
-                                                <option value="SKU-1">SKU-1</option>
-                                                <option value="SKU-2">SKU-2</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                    
-                                    <!-- Row 5: Tax category -->
-                                    <div style="display: flex; flex-direction: column; gap: 0.5rem; height: 4rem; justify-content: center;">
-                                        <div style="
-                                            padding: 0.5rem 0.75rem; 
-                                            border: 1px solid #e5e7eb; 
-                                            border-radius: 0.375rem; 
-                                            font-size: 0.875rem;
-                                            background-color: #f9fafb;
-                                            color: #374151;
-                                            position: relative;
-                                            min-height: 2.5rem;
-                                            display: flex;
-                                            align-items: center;
-                                        ">
-                                            Settings → General → Tax category in KatanaPIM
-                                            <svg style="width: 1rem; height: 1rem; position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%); color: #6b7280;" fill="currentColor" viewBox="0 0 20 20">
-                                                <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/>
-                                            </svg>
-                                        </div>
-                                        <div>
-                                            <label style="display: block; font-size: 0.875rem; color: #374151; margin-bottom: 0.5rem;">Select value</label>
-                                            <select wire:model="selectValue5" style="
-                                                width: 100%;
-                                                padding: 0.5rem 0.75rem; 
-                                                border: 2px solid #9333ea; 
-                                                border-radius: 0.375rem; 
-                                                font-size: 0.875rem;
-                                                background-color: white;
-                                                color: #374151;
-                                            ">
-                                                <option value="">Select value</option>
-                                                <option value="SKU-1">SKU-1</option>
-                                                <option value="SKU-2">SKU-2</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                    
-                                    <!-- Row 6: Manufacturer -->
-                                    <div style="display: flex; flex-direction: column; gap: 0.5rem; height: 4rem; justify-content: center;">
-                                        <div style="
-                                            padding: 0.5rem 0.75rem; 
-                                            border: 1px solid #e5e7eb; 
-                                            border-radius: 0.375rem; 
-                                            font-size: 0.875rem;
-                                            background-color: #f9fafb;
-                                            color: #374151;
-                                            position: relative;
-                                            min-height: 2.5rem;
-                                            display: flex;
-                                            align-items: center;
-                                        ">
-                                            Settings → General → Manufacturer in KatanaPIM
-                                            <svg style="width: 1rem; height: 1rem; position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%); color: #6b7280;" fill="currentColor" viewBox="0 0 20 20">
-                                                <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/>
-                                            </svg>
-                                        </div>
-                                        <div>
-                                            <label style="display: block; font-size: 0.875rem; color: #374151; margin-bottom: 0.5rem;">Select value</label>
-                                            <select wire:model="selectValue6" style="
-                                                width: 100%;
-                                                padding: 0.5rem 0.75rem; 
-                                                border: 2px solid #9333ea; 
-                                                border-radius: 0.375rem; 
-                                                font-size: 0.875rem;
-                                                background-color: white;
-                                                color: #374151;
-                                            ">
-                                                <option value="">Select value</option>
-                                                <option value="SKU-1">SKU-1</option>
-                                                <option value="SKU-2">SKU-2</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                    
-                                    <!-- Row 7: Manufacturer Part Number -->
-                                    <div style="display: flex; flex-direction: column; gap: 0.5rem; height: 4rem; justify-content: center;">
-                                        <div style="
-                                            padding: 0.5rem 0.75rem; 
-                                            border: 1px solid #e5e7eb; 
-                                            border-radius: 0.375rem; 
-                                            font-size: 0.875rem;
-                                            background-color: #f9fafb;
-                                            color: #374151;
-                                            position: relative;
-                                            min-height: 2.5rem;
-                                            display: flex;
-                                            align-items: center;
-                                        ">
-                                            Settings → General → Part Number in KatanaPIM
-                                            <svg style="width: 1rem; height: 1rem; position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%); color: #6b7280;" fill="currentColor" viewBox="0 0 20 20">
-                                                <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/>
-                                            </svg>
-                                        </div>
-                                        <div>
-                                            <label style="display: block; font-size: 0.875rem; color: #374151; margin-bottom: 0.5rem;">Select value</label>
-                                            <select wire:model="selectValue7" style="
-                                                width: 100%;
-                                                padding: 0.5rem 0.75rem; 
-                                                border: 2px solid #9333ea; 
-                                                border-radius: 0.375rem; 
-                                                font-size: 0.875rem;
-                                                background-color: white;
-                                                color: #374151;
-                                            ">
-                                                <option value="">Select value</option>
-                                                <option value="SKU-1">SKU-1</option>
-                                                <option value="SKU-2">SKU-2</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                    
-                                    <!-- Row 8: Price -->
-                                    <div style="display: flex; flex-direction: column; gap: 0.5rem; height: 4rem; justify-content: center;">
-                                        <div style="
-                                            padding: 0.5rem 0.75rem; 
-                                            border: 1px solid #e5e7eb; 
-                                            border-radius: 0.375rem; 
-                                            font-size: 0.875rem;
-                                            background-color: #f9fafb;
-                                            color: #374151;
-                                            position: relative;
-                                            min-height: 2.5rem;
-                                            display: flex;
-                                            align-items: center;
-                                        ">
-                                            Settings → Pricing → Price in KatanaPIM
-                                            <svg style="width: 1rem; height: 1rem; position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%); color: #6b7280;" fill="currentColor" viewBox="0 0 20 20">
-                                                <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/>
-                                            </svg>
-                                        </div>
-                                        <div>
-                                            <label style="display: block; font-size: 0.875rem; color: #374151; margin-bottom: 0.5rem;">Select value</label>
-                                            <select wire:model="selectValue8" style="
-                                                width: 100%;
-                                                padding: 0.5rem 0.75rem; 
-                                                border: 2px solid #9333ea; 
-                                                border-radius: 0.375rem; 
-                                                font-size: 0.875rem;
-                                                background-color: white;
-                                                color: #374151;
-                                            ">
-                                                <option value="">Select value</option>
-                                                <option value="SKU-1">SKU-1</option>
-                                                <option value="SKU-2">SKU-2</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                    
-                                    <!-- Row 9: Old Price -->
-                                    <div style="display: flex; flex-direction: column; gap: 0.5rem;">
-                                        <div style="
-                                            padding: 0.5rem 0.75rem; 
-                                            border: 1px solid #e5e7eb; 
-                                            border-radius: 0.375rem; 
-                                            font-size: 0.875rem;
-                                            background-color: #f9fafb;
-                                            color: #374151;
-                                            position: relative;
-                                            min-height: 2.5rem;
-                                            display: flex;
-                                            align-items: center;
-                                        ">
-                                            Settings → Pricing → Old Price in KatanaPIM
-                                            <svg style="width: 1rem; height: 1rem; position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%); color: #6b7280;" fill="currentColor" viewBox="0 0 20 20">
-                                                <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/>
-                                            </svg>
-                                        </div>
-                                        <div>
-                                            <label style="display: block; font-size: 0.875rem; color: #374151; margin-bottom: 0.5rem;">Select value</label>
-                                            <select wire:model="selectValue9" style="
-                                                width: 100%;
-                                                padding: 0.5rem 0.75rem; 
-                                                border: 2px solid #9333ea; 
-                                                border-radius: 0.375rem; 
-                                                font-size: 0.875rem;
-                                                background-color: white;
-                                                color: #374151;
-                                            ">
-                                                <option value="">Select value</option>
-                                                <option value="SKU-1">SKU-1</option>
-                                                <option value="SKU-2">SKU-2</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                    
-                                    <!-- Row 10: Special Price -->
-                                    <div style="display: flex; flex-direction: column; gap: 0.5rem;">
-                                        <div style="
-                                            padding: 0.5rem 0.75rem; 
-                                            border: 1px solid #e5e7eb; 
-                                            border-radius: 0.375rem; 
-                                            font-size: 0.875rem;
-                                            background-color: #f9fafb;
-                                            color: #374151;
-                                            position: relative;
-                                            min-height: 2.5rem;
-                                            display: flex;
-                                            align-items: center;
-                                        ">
-                                            Settings → Pricing → Special Price in KatanaPIM
-                                            <svg style="width: 1rem; height: 1rem; position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%); color: #6b7280;" fill="currentColor" viewBox="0 0 20 20">
-                                                <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/>
-                                            </svg>
-                                        </div>
-                                        <div>
-                                            <label style="display: block; font-size: 0.875rem; color: #374151; margin-bottom: 0.5rem;">Select value</label>
-                                            <select wire:model="selectValue10" style="
-                                                width: 100%;
-                                                padding: 0.5rem 0.75rem; 
-                                                border: 2px solid #9333ea; 
-                                                border-radius: 0.375rem; 
-                                                font-size: 0.875rem;
-                                                background-color: white;
-                                                color: #374151;
-                                            ">
-                                                <option value="">Select value</option>
-                                                <option value="SKU-1">SKU-1</option>
-                                                <option value="SKU-2">SKU-2</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                    
-                                    <!-- Row 11: Product cost -->
-                                    <div style="display: flex; flex-direction: column; gap: 0.5rem;">
-                                        <div style="
-                                            padding: 0.5rem 0.75rem; 
-                                            border: 1px solid #e5e7eb; 
-                                            border-radius: 0.375rem; 
-                                            font-size: 0.875rem;
-                                            background-color: #f9fafb;
-                                            color: #374151;
-                                            position: relative;
-                                            min-height: 2.5rem;
-                                            display: flex;
-                                            align-items: center;
-                                        ">
-                                            Settings → Pricing → Product Cost in KatanaPIM
-                                            <svg style="width: 1rem; height: 1rem; position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%); color: #6b7280;" fill="currentColor" viewBox="0 0 20 20">
-                                                <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/>
-                                            </svg>
-                                        </div>
-                                        <div>
-                                            <label style="display: block; font-size: 0.875rem; color: #374151; margin-bottom: 0.5rem;">Select value</label>
-                                            <select wire:model="selectValue11" style="
-                                                width: 100%;
-                                                padding: 0.5rem 0.75rem; 
-                                                border: 2px solid #9333ea; 
-                                                border-radius: 0.375rem; 
-                                                font-size: 0.875rem;
-                                                background-color: white;
-                                                color: #374151;
-                                            ">
-                                                <option value="">Select value</option>
-                                                <option value="SKU-1">SKU-1</option>
-                                                <option value="SKU-2">SKU-2</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                    
-                                    <!-- Row 12: Stock quantity -->
-                                    <div style="display: flex; flex-direction: column; gap: 0.5rem;">
-                                        <div style="
-                                            padding: 0.5rem 0.75rem; 
-                                            border: 1px solid #e5e7eb; 
-                                            border-radius: 0.375rem; 
-                                            font-size: 0.875rem;
-                                            background-color: #f9fafb;
-                                            color: #374151;
-                                            position: relative;
-                                            min-height: 2.5rem;
-                                            display: flex;
-                                            align-items: center;
-                                        ">
-                                            Settings → Inventory → Stock Quantity in KatanaPIM
-                                            <svg style="width: 1rem; height: 1rem; position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%); color: #6b7280;" fill="currentColor" viewBox="0 0 20 20">
-                                                <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/>
-                                            </svg>
-                                        </div>
-                                        <div>
-                                            <label style="display: block; font-size: 0.875rem; color: #374151; margin-bottom: 0.5rem;">Select value</label>
-                                            <select wire:model="selectValue12" style="
-                                                width: 100%;
-                                                padding: 0.5rem 0.75rem; 
-                                                border: 2px solid #9333ea; 
-                                                border-radius: 0.375rem; 
-                                                font-size: 0.875rem;
-                                                background-color: white;
-                                                color: #374151;
-                                            ">
-                                                <option value="">Select value</option>
-                                                <option value="SKU-1">SKU-1</option>
-                                                <option value="SKU-2">SKU-2</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                    
-                                    <!-- Row 13: Available Start Date -->
-                                    <div style="display: flex; flex-direction: column; gap: 0.5rem;">
-                                        <div style="
-                                            padding: 0.5rem 0.75rem; 
-                                            border: 1px solid #e5e7eb; 
-                                            border-radius: 0.375rem; 
-                                            font-size: 0.875rem;
-                                            background-color: #f9fafb;
-                                            color: #374151;
-                                            position: relative;
-                                            min-height: 2.5rem;
-                                            display: flex;
-                                            align-items: center;
-                                        ">
-                                            Settings → Availability → Start Date in KatanaPIM
-                                            <svg style="width: 1rem; height: 1rem; position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%); color: #6b7280;" fill="currentColor" viewBox="0 0 20 20">
-                                                <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/>
-                                            </svg>
-                                        </div>
-                                        <div>
-                                            <label style="display: block; font-size: 0.875rem; color: #374151; margin-bottom: 0.5rem;">Select value</label>
-                                            <select wire:model="selectValue13" style="
-                                                width: 100%;
-                                                padding: 0.5rem 0.75rem; 
-                                                border: 2px solid #9333ea; 
-                                                border-radius: 0.375rem; 
-                                                font-size: 0.875rem;
-                                                background-color: white;
-                                                color: #374151;
-                                            ">
-                                                <option value="">Select value</option>
-                                                <option value="SKU-1">SKU-1</option>
-                                                <option value="SKU-2">SKU-2</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                    
-                                    <!-- Row 14: Available End Date -->
-                                    <div style="display: flex; flex-direction: column; gap: 0.5rem;">
-                                        <div style="
-                                            padding: 0.5rem 0.75rem; 
-                                            border: 1px solid #e5e7eb; 
-                                            border-radius: 0.375rem; 
-                                            font-size: 0.875rem;
-                                            background-color: #f9fafb;
-                                            color: #374151;
-                                            position: relative;
-                                            min-height: 2.5rem;
-                                            display: flex;
-                                            align-items: center;
-                                        ">
-                                            Settings → Availability → End Date in KatanaPIM
-                                            <svg style="width: 1rem; height: 1rem; position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%); color: #6b7280;" fill="currentColor" viewBox="0 0 20 20">
-                                                <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/>
-                                            </svg>
-                                        </div>
-                                        <div>
-                                            <label style="display: block; font-size: 0.875rem; color: #374151; margin-bottom: 0.5rem;">Select value</label>
-                                            <select wire:model="selectValue14" style="
-                                                width: 100%;
-                                                padding: 0.5rem 0.75rem; 
-                                                border: 2px solid #9333ea; 
-                                                border-radius: 0.375rem; 
-                                                font-size: 0.875rem;
-                                                background-color: white;
-                                                color: #374151;
-                                            ">
-                                                <option value="">Select value</option>
-                                                <option value="SKU-1">SKU-1</option>
-                                                <option value="SKU-2">SKU-2</option>
-                                            </select>
-                                        </div>
+                                            <option value="SKU-1">SKU-1</option>
+                                        </select>
+                                        <button type="button" style="
+                                            background: none; 
+                                            border: none; 
+                                            color: #ef4444; 
+                                            cursor: pointer;
+                                            padding: 0.25rem;
+                                        ">✕</button>
                                     </div>
                                 </div>
                             </div>
-                        </div>
+                                </div>
                     </div>
 
                 @elseif($currentStep === 5)
-                    <!-- Step 5: Specification -->
+                    <!-- Step 5: Specifications -->
+                    <div style="display: flex; flex-direction: column; gap: 2rem;" wire:init="loadSpecificationsIfNeeded">
+                        <div>
+                            <h3 style="font-size: 1.125rem; font-weight: 600; color: #111827; margin-bottom: 1rem;">Specifications</h3>
+                            <p style="color: #6b7280; margin-bottom: 2rem;">Configure product specifications and conditions for your integration.</p>
+                            
+                            <!-- Product Condition Section -->
+                            <div style="margin-bottom: 2rem;">
+                                <h4 style="font-size: 1rem; font-weight: 600; color: #111827; margin-bottom: 1rem;">Product Condition</h4>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                                        <div>
+                                            <label style="display: block; font-size: 0.875rem; font-weight: 500; color: #374151; margin-bottom: 0.5rem;">
+                                            Condition
+                                            </label>
+                                            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                                <select wire:model="condition" style="
+                                                    flex: 1;
+                                                    padding: 0.75rem; 
+                                                    border: 1px solid #d1d5db; 
+                                                    border-radius: 0.375rem; 
+                                                    font-size: 0.875rem;
+                                                    background-color: white;
+                                                ">
+                                                    <option value="">Select condition</option>
+                                                    @if(empty($specifications))
+                                                        <option value="new">New</option>
+                                                        <option value="used">Used</option>
+                                                        <option value="refurbished">Refurbished</option>
+                                                        <option value="other">Other</option>
+                                                    @else
+                                                        @foreach($specifications as $spec)
+                                                            <option value="{{ $spec['Name'] }}">{{ $spec['Name'] }}</option>
+                                                        @endforeach
+                                                    @endif
+                                                </select>
+                                                <button type="button" wire:click="fetchSpecifications" wire:loading.attr="disabled" style="
+                                                    padding: 0.5rem 1rem;
+                                                    background-color: #3b82f6;
+                                                    color: white;
+                                                    border: none;
+                                                    border-radius: 0.375rem;
+                                                    font-size: 0.875rem;
+                                                    cursor: pointer;
+                                                    white-space: nowrap;
+                                                " wire:loading.class="opacity-50">
+                                                    <span wire:loading.remove>Load from API</span>
+                                                    <span wire:loading>Loading...</span>
+                                                </button>
+                                            </div>
+                                            @error('condition') <span style="color: #ef4444; font-size: 0.75rem;">{{ $message }}</span> @enderror
+                                            @error('specifications') <span style="color: #ef4444; font-size: 0.75rem;">{{ $message }}</span> @enderror
+                                        </div>
+                                        <div>
+                                            <label style="display: block; font-size: 0.875rem; font-weight: 500; color: #374151; margin-bottom: 0.5rem;">
+                                            Condition Value
+                                            </label>
+                                        <input wire:model="conditionValue" type="text" placeholder="Enter condition value" style="
+                                                width: 100%; 
+                                                padding: 0.75rem; 
+                                                border: 1px solid #d1d5db; 
+                                                border-radius: 0.375rem; 
+                                                font-size: 0.875rem;
+                                                background-color: white;
+                                            ">
+                                        @error('conditionValue') <span style="color: #ef4444; font-size: 0.75rem;">{{ $message }}</span> @enderror
+                                        </div>
+                                </div>
+                            </div>
+
+                            <!-- SEO Section -->
+                            <div style="margin-bottom: 2rem;">
+                                <h4 style="font-size: 1rem; font-weight: 600; color: #111827; margin-bottom: 1rem;">SEO Settings</h4>
+                                <div style="display: flex; flex-direction: column; gap: 1rem;">
+                                    <div>
+                                            <label style="display: block; font-size: 0.875rem; font-weight: 500; color: #374151; margin-bottom: 0.5rem;">
+                                            Meta Title
+                                            </label>
+                                        <input wire:model="metaTitle" type="text" placeholder="Enter meta title" style="
+                                                width: 100%; 
+                                                padding: 0.75rem; 
+                                                border: 1px solid #d1d5db; 
+                                                border-radius: 0.375rem; 
+                                                font-size: 0.875rem;
+                                                background-color: white;
+                                            ">
+                                        @error('metaTitle') <span style="color: #ef4444; font-size: 0.75rem;">{{ $message }}</span> @enderror
+                                        </div>
+                                    <div>
+                                            <label style="display: block; font-size: 0.875rem; font-weight: 500; color: #374151; margin-bottom: 0.5rem;">
+                                            Meta Description
+                                            </label>
+                                        <textarea wire:model="metaDescription" placeholder="Enter meta description" style="
+                                                width: 100%; 
+                                                padding: 0.75rem; 
+                                                border: 1px solid #d1d5db; 
+                                                border-radius: 0.375rem; 
+                                                font-size: 0.875rem;
+                                                background-color: white;
+                                                min-height: 2.5rem;
+                                            "></textarea>
+                                        @error('metaDescription') <span style="color: #ef4444; font-size: 0.75rem;">{{ $message }}</span> @enderror
+                                        </div>
+                                    <div>
+                                        <label style="display: block; font-size: 0.875rem; font-weight: 500; color: #374151; margin-bottom: 0.5rem;">
+                                            Keywords
+                                        </label>
+                                        <input wire:model="keywords" type="text" placeholder="Enter keywords (comma separated)" style="
+                                            width: 100%; 
+                                            padding: 0.75rem; 
+                                            border: 1px solid #d1d5db; 
+                                            border-radius: 0.375rem; 
+                                            font-size: 0.875rem;
+                                            background-color: white;
+                                        ">
+                                        @error('keywords') <span style="color: #ef4444; font-size: 0.75rem;">{{ $message }}</span> @enderror
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                @elseif($currentStep === 6)
+                    <!-- Step 6: Specification -->
                     <div style="display: flex; flex-direction: column; gap: 2rem;">
                         <div>
                             <h3 style="font-size: 1.125rem; font-weight: 600; color: #111827; margin-bottom: 1rem;">Product Specifications</h3>
@@ -1284,8 +1526,8 @@ new class extends Component {
                         </div>
                     </div>
 
-                @elseif($currentStep === 6)
-                    <!-- Step 6: Let's Go 🚀 -->
+                @elseif($currentStep === 7)
+                    <!-- Step 7: Let's Go 🚀 -->
                     <div style="text-align: center; padding: 2rem;">
                         <div style="
                             width: 6rem; 
