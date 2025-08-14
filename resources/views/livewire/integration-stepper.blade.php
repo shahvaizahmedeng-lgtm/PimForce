@@ -390,7 +390,7 @@ new class extends Component {
             $http = \Illuminate\Support\Facades\Http::withHeaders([
                 'ApiKey' => $apiKey,
                 'Accept' => 'application/json',
-            ])->timeout(30);
+            ])->timeout(60); // Increased timeout to 60 seconds
             
             // Disable SSL verification for development environments
             if (app()->environment('local', 'development')) {
@@ -406,8 +406,24 @@ new class extends Component {
             } else {
                 $this->addError('specifications', 'Failed to load specifications: ' . $response->status());
             }
+        } catch (\Illuminate\Http\Client\ConnectionException $e) {
+            $this->addError('specifications', 'Connection timeout. Please try again or check your internet connection.');
+            // Provide fallback options
+            $this->specifications = [
+                ['Name' => 'New'],
+                ['Name' => 'Used'],
+                ['Name' => 'Refurbished'],
+                ['Name' => 'Other']
+            ];
         } catch (\Exception $e) {
             $this->addError('specifications', 'Error loading specifications: ' . $e->getMessage());
+            // Provide fallback options
+            $this->specifications = [
+                ['Name' => 'New'],
+                ['Name' => 'Used'],
+                ['Name' => 'Refurbished'],
+                ['Name' => 'Other']
+            ];
         } finally {
             $this->loadingSpecifications = false;
         }
@@ -418,9 +434,8 @@ new class extends Component {
      */
     public function loadSpecificationsIfNeeded()
     {
-        if ($this->currentStep === 5 && empty($this->specifications)) {
-            $this->fetchSpecifications();
-        }
+        // Don't automatically load - let user click the button instead
+        // This prevents timeout issues on page load
     }
     
     /**
@@ -438,7 +453,7 @@ new class extends Component {
             $http = \Illuminate\Support\Facades\Http::withHeaders([
                 'ApiKey' => $apiKey,
                 'Accept' => 'application/json',
-            ])->timeout(30);
+            ])->timeout(60); // Increased timeout to 60 seconds
             
             // Disable SSL verification for development environments
             if (app()->environment('local', 'development')) {
@@ -454,8 +469,22 @@ new class extends Component {
             } else {
                 $this->addError('stores', 'Failed to load stores: ' . $response->status());
             }
+        } catch (\Illuminate\Http\Client\ConnectionException $e) {
+            $this->addError('stores', 'Connection timeout. Please try again or check your internet connection.');
+            // Provide fallback options
+            $this->stores = [
+                ['Id' => 'custom', 'Name' => 'Custom Store'],
+                ['Id' => 'woocommerce', 'Name' => 'WooCommerce'],
+                ['Id' => 'shopify', 'Name' => 'Shopify']
+            ];
         } catch (\Exception $e) {
             $this->addError('stores', 'Error loading stores: ' . $e->getMessage());
+            // Provide fallback options
+            $this->stores = [
+                ['Id' => 'custom', 'Name' => 'Custom Store'],
+                ['Id' => 'woocommerce', 'Name' => 'WooCommerce'],
+                ['Id' => 'shopify', 'Name' => 'Shopify']
+            ];
         } finally {
             $this->loadingStores = false;
         }
@@ -466,9 +495,8 @@ new class extends Component {
      */
     public function loadStoresIfNeeded()
     {
-        if ($this->currentStep === 2 && empty($this->stores)) {
-            $this->fetchStores();
-        }
+        // Don't automatically load - let user click the button instead
+        // This prevents timeout issues on page load
     }
     
     public function selectStore($storeType)
@@ -1303,26 +1331,23 @@ new class extends Component {
                             <!-- Product Condition Section -->
                             <div style="margin-bottom: 2rem;">
                                 <h4 style="font-size: 1rem; font-weight: 600; color: #111827; margin-bottom: 1rem;">Product Condition</h4>
-                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                                <!-- <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;"> -->
                                         <div>
                                             <label style="display: block; font-size: 0.875rem; font-weight: 500; color: #374151; margin-bottom: 0.5rem;">
                                             Condition
                                             </label>
                                             <div style="display: flex; gap: 0.5rem; align-items: center;">
-                                                <select wire:model="condition" style="
+                                                <select wire:model="condition" multiple style="
                                                     flex: 1;
                                                     padding: 0.75rem; 
                                                     border: 1px solid #d1d5db; 
                                                     border-radius: 0.375rem; 
                                                     font-size: 0.875rem;
                                                     background-color: white;
+                                                    min-height: 120px;
                                                 ">
-                                                    <option value="">Select condition</option>
                                                     @if(empty($specifications))
-                                                        <option value="new">New</option>
-                                                        <option value="used">Used</option>
-                                                        <option value="refurbished">Refurbished</option>
-                                                        <option value="other">Other</option>
+                                                        <option value="new">API not loaded</option>
                                                     @else
                                                         @foreach($specifications as $spec)
                                                             <option value="{{ $spec['Name'] }}">{{ $spec['Name'] }}</option>
@@ -1346,21 +1371,7 @@ new class extends Component {
                                             @error('condition') <span style="color: #ef4444; font-size: 0.75rem;">{{ $message }}</span> @enderror
                                             @error('specifications') <span style="color: #ef4444; font-size: 0.75rem;">{{ $message }}</span> @enderror
                                         </div>
-                                        <div>
-                                            <label style="display: block; font-size: 0.875rem; font-weight: 500; color: #374151; margin-bottom: 0.5rem;">
-                                            Condition Value
-                                            </label>
-                                        <input wire:model="conditionValue" type="text" placeholder="Enter condition value" style="
-                                                width: 100%; 
-                                                padding: 0.75rem; 
-                                                border: 1px solid #d1d5db; 
-                                                border-radius: 0.375rem; 
-                                                font-size: 0.875rem;
-                                                background-color: white;
-                                            ">
-                                        @error('conditionValue') <span style="color: #ef4444; font-size: 0.75rem;">{{ $message }}</span> @enderror
-                                        </div>
-                                </div>
+                                <!-- </div> -->
                             </div>
 
                             <!-- SEO Section -->
