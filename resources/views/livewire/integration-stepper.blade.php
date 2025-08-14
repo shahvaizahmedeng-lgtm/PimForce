@@ -13,7 +13,6 @@ new class extends Component {
         'Store', 
         'Fields',
         'Specifications',
-        'SEO',
         'Synchronisations'
     ];
 
@@ -247,19 +246,6 @@ new class extends Component {
                 break;
                 
             case 6:
-                // Step 6 validation for SEO (additional SEO fields if needed)
-                $this->validate([
-                    'metaTitle' => 'nullable|max:60',
-                    'metaDescription' => 'nullable|max:160',
-                    'keywords' => 'nullable|max:200',
-                ], [
-                    'metaTitle.max' => 'Meta title cannot exceed 60 characters.',
-                    'metaDescription.max' => 'Meta description cannot exceed 160 characters.',
-                    'keywords.max' => 'Keywords cannot exceed 200 characters.',
-                ]);
-                break;
-                
-            case 7:
                 // Step 7 validation is optional as these are final specification fields
                 break;
         }
@@ -376,14 +362,7 @@ new class extends Component {
                 return count($filled) / count($fields) * 100;
                 
             case 6:
-                // Step 6 completion for SEO (optional fields)
-                $fields = ['metaTitle', 'metaDescription', 'keywords'];
-                $filled = array_filter(array_map(fn($field) => !empty($this->$field), $fields));
-                // SEO fields are optional, so show progress based on filled fields
-                return count($filled) / count($fields) * 100;
-                
-            case 7:
-                // Step 7 is optional, so always show as complete if user reaches it
+                // Step 6 is optional, so always show as complete if user reaches it
                 return 100;
                 
             default:
@@ -1001,7 +980,7 @@ new class extends Component {
                                 <label style="display: block; font-size: 0.875rem; font-weight: 500; color: #374151; margin-bottom: 0.5rem;">
                                             Unique Identifier
                                 </label>
-                                        <input wire:model="uniqueIdentifier" type="text" placeholder="Product ID" value="Product ID" style="
+                                        <select wire:model="uniqueIdentifier" style="
                                     width: 100%; 
                                             padding: 0.75rem; 
                                     border: 1px solid #d1d5db; 
@@ -1009,6 +988,10 @@ new class extends Component {
                                     font-size: 0.875rem;
                                             background-color: white;
                                 ">
+                                            <option value="SKU-1">SKU-1</option>
+                                            <option value="GTIN">GTIN</option>
+                                            <option value="Externalkey">Externalkey</option>
+                                        </select>
                             </div>
                                 <div>
                                     <label style="display: block; font-size: 0.875rem; font-weight: 500; color: #374151; margin-bottom: 0.5rem;">
@@ -1085,9 +1068,7 @@ new class extends Component {
                                             background-color: white;
                                             min-width: 250px;
                                         ">
-                                            <option value="">Select value</option>
-                                            <option value="price">Price</option>
-                                            <option value="cost">Cost</option>
+                                            <option value="SKU-1">SKU-1</option>
                                         </select>
                                         <button type="button" style="
                                             background: none; 
@@ -1435,98 +1416,6 @@ new class extends Component {
                     </div>
 
                 @elseif($currentStep === 6)
-                    <!-- Step 6: Specification -->
-                    <div style="display: flex; flex-direction: column; gap: 2rem;">
-                        <div>
-                            <h3 style="font-size: 1.125rem; font-weight: 600; color: #111827; margin-bottom: 1rem;">Product Specifications</h3>
-                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
-                                <div>
-                                    <label style="display: block; font-size: 0.875rem; font-weight: 500; color: #374151; margin-bottom: 0.5rem;">
-                                        Condition *
-                                    </label>
-                                    <select wire:model="condition" style="
-                                        width: 100%; 
-                                        padding: 0.5rem 0.75rem; 
-                                        border: 1px solid #d1d5db; 
-                                        border-radius: 0.375rem; 
-                                        font-size: 0.875rem;
-                                    ">
-                                        <option value="">Select a condition</option>
-                                        <option value="new">New</option>
-                                        <option value="used">Used</option>
-                                        <option value="refurbished">Refurbished</option>
-                                        <option value="other">Other</option>
-                                    </select>
-                                    @error('condition') <span style="color: #ef4444; font-size: 0.75rem;">{{ $message }}</span> @enderror
-                                </div>
-                                <div>
-                                    <label style="display: block; font-size: 0.875rem; font-weight: 500; color: #374151; margin-bottom: 0.5rem;">
-                                        Condition Value
-                                    </label>
-                                    <input wire:model="conditionValue" type="text" placeholder="Specify condition value" style="
-                                        width: 100%; 
-                                        padding: 0.75rem; 
-                                        border: 1px solid #d1d5db; 
-                                        border-radius: 0.375rem; 
-                                        font-size: 0.875rem;
-                                        background-color: white;
-                                    ">
-                                    @error('conditionValue') <span style="color: #ef4444; font-size: 0.75rem;">{{ $message }}</span> @enderror
-                                </div>
-                            </div>
-                        </div>
-
-                        <div>
-                            <h3 style="font-size: 1.125rem; font-weight: 600; color: #111827; margin-bottom: 1rem;">SEO & Meta Information</h3>
-                            <div style="display: flex; flex-direction: column; gap: 1.5rem;">
-                                <div>
-                                    <label style="display: block; font-size: 0.875rem; font-weight: 500; color: #374151; margin-bottom: 0.5rem;">
-                                        Meta Title
-                                    </label>
-                                    <input wire:model="metaTitle" type="text" placeholder="Enter meta title" style="
-                                        width: 100%; 
-                                        padding: 0.75rem; 
-                                        border: 1px solid #d1d5db; 
-                                        border-radius: 0.375rem; 
-                                        font-size: 0.875rem;
-                                        background-color: white;
-                                    ">
-                                </div>
-                                <div>
-                                    <label style="display: block; font-size: 0.875rem; font-weight: 500; color: #374151; margin-bottom: 0.5rem;">
-                                        Meta Description
-                                    </label>
-                                    <textarea wire:model="metaDescription" placeholder="Enter meta description" style="
-                                        width: 100%; 
-                                        padding: 0.75rem; 
-                                        border: 1px solid #d1d5db; 
-                                        border-radius: 0.375rem; 
-                                        font-size: 0.875rem;
-                                        background-color: white;
-                                        resize: vertical;
-                                        min-height: 2.5rem;
-                                    "></textarea>
-                                </div>
-                                <div>
-                                    <label style="display: block; font-size: 0.875rem; font-weight: 500; color: #374151; margin-bottom: 0.5rem;">
-                                        Keywords
-                                    </label>
-                                    <textarea wire:model="keywords" placeholder="Enter keywords (comma separated)" style="
-                                        width: 100%; 
-                                        padding: 0.75rem; 
-                                        border: 1px solid #d1d5db; 
-                                        border-radius: 0.375rem; 
-                                        font-size: 0.875rem;
-                                        background-color: white;
-                                        resize: vertical;
-                                        min-height: 2.5rem;
-                                    "></textarea>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                @elseif($currentStep === 7)
                     <!-- Step 7: Let's Go 🚀 -->
                     <div style="text-align: center; padding: 2rem;">
                         <div style="
