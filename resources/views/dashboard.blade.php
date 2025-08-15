@@ -125,7 +125,7 @@
                                     </svg>
                                 </div>
                                 <div class="ml-4">
-                                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white">{{ $integration->integration_name }}</h3>
+                                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white">{{ $integration->integrationName }}</h3>
                                     <p class="text-sm text-gray-600 dark:text-gray-400">{{ $integration->description }}</p>
                                 </div>
                             </div>

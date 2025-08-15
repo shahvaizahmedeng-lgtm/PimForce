@@ -66,7 +66,7 @@ class SyncProductsCommand extends Command
         }
         
         foreach ($integrations as $integration) {
-            $this->info("\nTesting connection for integration: {$integration->integration_name}");
+            $this->info("\nTesting connection for integration: {$integration->integrationName}");
             $this->testKatanaConnection($integration);
         }
     }
@@ -77,13 +77,13 @@ class SyncProductsCommand extends Command
     private function testKatanaConnection(Integration $integration)
     {
         try {
-            $baseUrl = rtrim($integration->katana_pim_url, '/');
+            $baseUrl = rtrim($integration->apiDetails['katanaPimUrl'], '/');
             if (!str_ends_with($baseUrl, '/api/v1/product')) {
                 $baseUrl .= '/api/v1/product';
             }
             
             $this->line("Testing URL: {$baseUrl}");
-            $this->line("API Key: " . substr($integration->katana_pim_api_key, 0, 10) . "...");
+            $this->line("API Key: " . substr($integration->apiDetails['katanaPimApiKey'], 0, 10) . "...");
             
             $http = $this->katanaClient($integration);
             
@@ -92,11 +92,8 @@ class SyncProductsCommand extends Command
                 'PageSize'  => 1,
             ];
             
-            if (!empty($integration->selected_store)) {
-                $params['StoreId'] = (int)$integration->selected_store;
-                $this->line("Using StoreId: {$integration->selected_store}");
-            } elseif (!empty($integration->store_details) && is_array($integration->store_details)) {
-                $storeId = $integration->store_details['id'] ?? null;
+            if (!empty($integration->store_details) && is_array($integration->store_details)) {
+                $storeId = $integration->store_details['store_id'] ?? null;
                 if ($storeId) {
                     $params['StoreId'] = (int)$storeId;
                     $this->line("Using StoreId from store_details: {$storeId}");
@@ -166,12 +163,12 @@ class SyncProductsCommand extends Command
      */
     private function processIntegration(Integration $integration)
     {
-        $this->info("\nProcessing integration: {$integration->integration_name}");
+        $this->info("\nProcessing integration: {$integration->integrationName}");
         
         try {
             // Validate integration configuration
             if (!$this->validateIntegration($integration)) {
-                $this->error("Integration {$integration->integration_name} has invalid configuration. Skipping.");
+                $this->error("Integration {$integration->integrationName} has invalid configuration. Skipping.");
                 return;
             }
             
@@ -179,7 +176,7 @@ class SyncProductsCommand extends Command
             $katanaProducts = $this->fetchKatanaProducts($integration);
             
             if (empty($katanaProducts)) {
-                $this->warn("No products found in KatanaPIM for integration {$integration->integration_name}");
+                $this->warn("No products found in KatanaPIM for integration {$integration->integrationName}");
                 return;
             }
             
@@ -204,10 +201,10 @@ class SyncProductsCommand extends Command
                 }
             }
             
-            $this->info("Integration {$integration->integration_name} completed: {$successCount} successful, {$errorCount} failed");
+            $this->info("Integration {$integration->integrationName} completed: {$successCount} successful, {$errorCount} failed");
             
         } catch (Exception $e) {
-            $this->error("Failed to process integration {$integration->integration_name}: " . $e->getMessage());
+            $this->error("Failed to process integration {$integration->integrationName}: " . $e->getMessage());
             Log::error('Integration processing failed', [
                 'integration_id' => $integration->id,
                 'error' => $e->getMessage()
@@ -220,41 +217,47 @@ class SyncProductsCommand extends Command
      */
     private function validateIntegration(Integration $integration): bool
     {
+        // Check if apiDetails exists and has required fields
+        if (empty($integration->apiDetails)) {
+            $this->error("Missing apiDetails configuration");
+            return false;
+        }
+        
         $requiredFields = [
-            'katana_pim_url',
-            'katana_pim_api_key',
-            'webshop_url',
-            'woo_commerce_api_key',
-            'woo_commerce_api_secret'
+            'katanaPimUrl',
+            'katanaPimApiKey',
+            'webshopUrl',
+            'wooCommerceApiKey',
+            'wooCommerceApiSecret'
         ];
         
         foreach ($requiredFields as $field) {
-            if (empty($integration->$field)) {
-                $this->error("Missing required field: {$field}");
+            if (empty($integration->apiDetails[$field])) {
+                $this->error("Missing required field in apiDetails: {$field}");
                 return false;
             }
         }
         
         // Validate URLs
-        if (!filter_var($integration->katana_pim_url, FILTER_VALIDATE_URL)) {
-            $this->error("Invalid KatanaPIM URL: {$integration->katana_pim_url}");
+        if (!filter_var($integration->apiDetails['katanaPimUrl'], FILTER_VALIDATE_URL)) {
+            $this->error("Invalid KatanaPIM URL: {$integration->apiDetails['katanaPimUrl']}");
             return false;
         }
         
-        if (!filter_var($integration->webshop_url, FILTER_VALIDATE_URL)) {
-            $this->error("Invalid WooCommerce URL: {$integration->webshop_url}");
+        if (!filter_var($integration->apiDetails['webshopUrl'], FILTER_VALIDATE_URL)) {
+            $this->error("Invalid WooCommerce URL: {$integration->apiDetails['webshopUrl']}");
             return false;
         }
         
         // Check for obvious invalid URLs (like Stripe checkout URLs)
-        if (str_contains($integration->katana_pim_url, 'stripe.com') || 
-            str_contains($integration->katana_pim_url, 'checkout.stripe.com')) {
-            $this->error("Invalid KatanaPIM URL detected (appears to be a Stripe checkout URL): {$integration->katana_pim_url}");
+        if (str_contains($integration->apiDetails['katanaPimUrl'], 'stripe.com') || 
+            str_contains($integration->apiDetails['katanaPimUrl'], 'checkout.stripe.com')) {
+            $this->error("Invalid KatanaPIM URL detected (appears to be a Stripe checkout URL): {$integration->apiDetails['katanaPimUrl']}");
             return false;
         }
         
         // Validate store configuration
-        if (empty($integration->selected_store) && empty($integration->store_details)) {
+        if (empty($integration->store_details)) {
             $this->warn("No store configuration found. This might cause issues with product filtering.");
         }
         
@@ -291,7 +294,7 @@ class SyncProductsCommand extends Command
     private function fetchKatanaProducts(Integration $integration): array
     {
         // Ensure the URL ends with the correct API endpoint
-        $baseUrl = rtrim($integration->katana_pim_url, '/');
+        $baseUrl = rtrim($integration->apiDetails['katanaPimUrl'], '/');
         if (!str_ends_with($baseUrl, '/api/v1/product')) {
             $baseUrl .= '/api/v1/product';
         }
@@ -308,11 +311,9 @@ class SyncProductsCommand extends Command
                 'PageSize'  => $pageSize,
             ];
             
-            // Use selected_store if available, otherwise try to extract from store_details
-            if (!empty($integration->selected_store)) {
-                $params['StoreId'] = (int)$integration->selected_store;
-            } elseif (!empty($integration->store_details) && is_array($integration->store_details)) {
-                $storeId = $integration->store_details['id'] ?? null;
+            // Use store_details if available
+            if (!empty($integration->store_details) && is_array($integration->store_details)) {
+                $storeId = $integration->store_details['store_id'] ?? null;
                 if ($storeId) {
                     $params['StoreId'] = (int)$storeId;
                 }

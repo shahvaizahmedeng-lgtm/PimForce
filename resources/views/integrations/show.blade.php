@@ -37,7 +37,7 @@
                         <dl class="space-y-3">
                             <div>
                                 <dt class="text-sm font-medium text-gray-500">Name</dt>
-                                <dd class="text-sm text-gray-900 break-all">{{ $integration->integration_name ?: 'Unnamed Integration' }}</dd>
+                                <dd class="text-sm text-gray-900 break-all">{{ $integration->integrationName ?: 'Unnamed Integration' }}</dd>
                             </div>
                             @if($integration->description)
                                 <div>
@@ -67,36 +67,26 @@
                             <div>
                                 <dt class="text-sm font-medium text-gray-500">Selected Store</dt>
                                 <dd class="text-sm text-gray-900">
-                                    @if($integration->selected_store === 'store1')
+                                    @if($integration->storeName)
                                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                            Store 1
-                                        </span>
-                                    @elseif($integration->selected_store === 'store2')
-                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                                            Store 2
-                                        </span>
-                                    @elseif($integration->selected_store === 'new_store')
-                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                            Custom Store
+                                            {{ $integration->storeName }}
                                         </span>
                                     @else
                                         <span class="text-gray-500">N/A</span>
                                     @endif
                                 </dd>
                             </div>
-                            @if($integration->store_details && is_array($integration->store_details))
-                                @if(isset($integration->store_details['store_name']))
-                                    <div>
-                                        <dt class="text-sm font-medium text-gray-500">Store Name</dt>
-                                        <dd class="text-sm text-gray-900">{{ $integration->store_details['store_name'] }}</dd>
-                                    </div>
-                                @endif
-                                @if(isset($integration->store_details['store_type']))
-                                    <div>
-                                        <dt class="text-sm font-medium text-gray-500">Store Type</dt>
-                                        <dd class="text-sm text-gray-900">{{ ucfirst($integration->store_details['store_type']) }}</dd>
-                                    </div>
-                                @endif
+                            @if($integration->storeName)
+                                <div>
+                                    <dt class="text-sm font-medium text-gray-500">Store Name</dt>
+                                    <dd class="text-sm text-gray-900">{{ $integration->storeName }}</dd>
+                                </div>
+                            @endif
+                            @if($integration->storeType)
+                                <div>
+                                    <dt class="text-sm font-medium text-gray-500">Store Type</dt>
+                                    <dd class="text-sm text-gray-900">{{ ucfirst($integration->storeType) }}</dd>
+                                </div>
                             @endif
                         </dl>
                     </div>
@@ -116,11 +106,11 @@
                         <dl class="space-y-3">
                             <div>
                                 <dt class="text-sm font-medium text-gray-500">URL</dt>
-                                <dd class="text-sm text-gray-900 font-mono break-all">{{ $integration->katana_pim_url ?: 'Not configured' }}</dd>
+                                <dd class="text-sm text-gray-900 font-mono break-all">{{ $integration->katanaPimUrl ?: 'Not configured' }}</dd>
                             </div>
                             <div>
                                 <dt class="text-sm font-medium text-gray-500">API Key</dt>
-                                <dd class="text-sm text-gray-900 font-mono">{{ $integration->katana_pim_api_key ? '••••••••••••••••' : 'Not configured' }}</dd>
+                                <dd class="text-sm text-gray-900 font-mono">{{ $integration->katanaPimApiKey ? '••••••••••••••••' : 'Not configured' }}</dd>
                             </div>
                         </dl>
                     </div>
@@ -129,15 +119,15 @@
                         <dl class="space-y-3">
                             <div>
                                 <dt class="text-sm font-medium text-gray-500">URL</dt>
-                                <dd class="text-sm text-gray-900 font-mono break-all">{{ $integration->webshop_url ?: 'Not configured' }}</dd>
+                                <dd class="text-sm text-gray-900 font-mono break-all">{{ $integration->webshopUrl ?: 'Not configured' }}</dd>
                             </div>
                             <div>
                                 <dt class="text-sm font-medium text-gray-500">WooCommerce API Key</dt>
-                                <dd class="text-sm text-gray-900 font-mono">{{ $integration->woo_commerce_api_key ? '••••••••••••••••' : 'Not configured' }}</dd>
+                                <dd class="text-sm text-gray-900 font-mono">{{ $integration->wooCommerceApiKey ? '••••••••••••••••' : 'Not configured' }}</dd>
                             </div>
                             <div>
                                 <dt class="text-sm font-medium text-gray-500">WooCommerce API Secret</dt>
-                                <dd class="text-sm text-gray-900 font-mono">{{ $integration->woo_commerce_api_secret ? '••••••••••••••••' : 'Not configured' }}</dd>
+                                <dd class="text-sm text-gray-900 font-mono">{{ $integration->wooCommerceApiSecret ? '••••••••••••••••' : 'Not configured' }}</dd>
                             </div>
                         </dl>
                     </div>
@@ -157,11 +147,11 @@
                         <dl class="space-y-3">
                             <div>
                                 <dt class="text-sm font-medium text-gray-500">Identifier</dt>
-                                <dd class="text-sm text-gray-900">{{ $integration->unique_identifier ?: 'Not configured' }}</dd>
+                                <dd class="text-sm text-gray-900">{{ $integration->uniqueIdentifierValue ?: 'Not configured' }}</dd>
                             </div>
                             <div>
                                 <dt class="text-sm font-medium text-gray-500">Type</dt>
-                                <dd class="text-sm text-gray-900">{{ $integration->identification_type ?: 'Not configured' }}</dd>
+                                <dd class="text-sm text-gray-900">{{ $integration->identificationType ?: 'Not configured' }}</dd>
                             </div>
                         </dl>
                     </div>
@@ -170,12 +160,12 @@
                         <dl class="space-y-3">
                             <div>
                                 <dt class="text-sm font-medium text-gray-500">Condition</dt>
-                                <dd class="text-sm text-gray-900">{{ $integration->condition ? ucfirst($integration->condition) : 'Not configured' }}</dd>
+                                <dd class="text-sm text-gray-900">{{ $integration->productConditionValue ?: 'Not configured' }}</dd>
                             </div>
-                            @if($integration->condition_value)
+                            @if($integration->productConditionValueString)
                                 <div>
                                     <dt class="text-sm font-medium text-gray-500">Condition Value</dt>
-                                    <dd class="text-sm text-gray-900">{{ $integration->condition_value }}</dd>
+                                    <dd class="text-sm text-gray-900">{{ $integration->productConditionValueString }}</dd>
                                 </div>
                             @endif
                         </dl>

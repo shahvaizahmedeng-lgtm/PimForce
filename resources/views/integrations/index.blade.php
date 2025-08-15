@@ -81,7 +81,7 @@
                         </div>
                         <div class="ml-3">
                             <p class="text-xs font-medium text-gray-600">Stores</p>
-                            <p class="text-xl font-bold text-gray-900">{{ $integrations->unique('selected_store')->count() }}</p>
+                            <p class="text-xl font-bold text-gray-900">{{ $integrations->count() }}</p>
                         </div>
                     </div>
                 </div>
@@ -102,7 +102,7 @@
                                     </div>
                                     <div class="ml-3">
                                         <h3 class="text-base font-semibold text-gray-900 group-hover:text-purple-600 transition-colors">
-                                                    {{ $integration->integration_name ?: 'Unnamed Integration' }}
+                                                    {{ $integration->integrationName ?: 'Unnamed Integration' }}
                                         </h3>
                                         <p class="text-xs text-gray-500">{{ $integration->created_at->format('M d, Y') }}</p>
                                     </div>
@@ -128,17 +128,9 @@
                                 <div class="flex items-center justify-between">
                                     <span class="text-sm font-medium text-gray-500">Store</span>
                                     <div class="text-sm">
-                                        @if($integration->selected_store === 'store1')
+                                        @if($integration->store_details && isset($integration->store_details['store_name']))
                                             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                                Store 1
-                                            </span>
-                                        @elseif($integration->selected_store === 'store2')
-                                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                                                Store 2
-                                            </span>
-                                        @elseif($integration->selected_store === 'new_store')
-                                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                                Custom Store
+                                                {{ $integration->store_details['store_name'] }}
                                             </span>
                                         @else
                                             <span class="text-gray-500">N/A</span>
@@ -150,7 +142,7 @@
                                 <div class="flex items-center justify-between">
                                     <span class="text-sm font-medium text-gray-500">API Status</span>
                                     <div class="flex items-center">
-                                        @if($integration->katana_pim_url && $integration->webshop_url)
+                                        @if($integration->apiDetails && isset($integration->apiDetails['katanaPimUrl']) && isset($integration->apiDetails['webshopUrl']))
                                             <div class="flex items-center text-green-600">
                                                 <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
                                                     <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>

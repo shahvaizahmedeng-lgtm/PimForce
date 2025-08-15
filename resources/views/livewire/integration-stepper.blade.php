@@ -19,7 +19,7 @@ new class extends Component {
     public $integrationName = '';
     public $description = '';
     public $selectedStore = '';
-    public $storeDetails = [
+    public $store_details = [
         'store_name' => '',
         'store_type' => '',
         'store_url' => '',
@@ -122,7 +122,7 @@ new class extends Component {
             'integrationName' => $this->integrationName,
             'description' => $this->description,
             'selectedStore' => $this->selectedStore,
-            'storeDetails' => $this->storeDetails,
+            'store_details' => $this->store_details,
             'uniqueIdentifier' => $this->uniqueIdentifier,
             'identificationType' => $this->identificationType,
             'condition' => $this->condition,
@@ -166,7 +166,7 @@ new class extends Component {
         session()->forget('integration_draft');
         $this->reset();
         $this->currentStep = 1;
-        $this->storeDetails = [
+        $this->store_details = [
             'store_name' => '',
             'store_type' => '',
             'store_url' => '',
@@ -212,19 +212,6 @@ new class extends Component {
                 break;
                 
             case 2:
-                $rules = ['selectedStore' => 'required'];
-                $messages = ['selectedStore.required' => 'Please select a store.'];
-                
-                if ($this->selectedStore === 'new_store') {
-                    $rules['storeDetails.store_name'] = 'required|min:2';
-                    $messages['storeDetails.store_name.required'] = 'Store name is required for custom stores.';
-                    $messages['storeDetails.store_name.min'] = 'Store name must be at least 2 characters.';
-                }
-                
-                $this->validate($rules, $messages);
-                break;
-                
-            case 3:
                 $this->validate([
                     'katanaPimUrl' => 'required|url',
                     'katanaPimApiKey' => 'required|min:3',
@@ -243,6 +230,19 @@ new class extends Component {
                     'wooCommerceApiSecret.required' => 'WooCommerce API secret is required.',
                     'wooCommerceApiSecret.min' => 'API secret must be at least 3 characters.',
                 ]);
+                break;
+                
+            case 3:
+                $rules = ['selectedStore' => 'required'];
+                $messages = ['selectedStore.required' => 'Please select a store.'];
+                
+                if ($this->selectedStore === 'new_store') {
+                    $rules['store_details.store_name'] = 'required|min:2';
+                    $messages['store_details.store_name.required'] = 'Store name is required for custom stores.';
+                    $messages['store_details.store_name.min'] = 'Store name must be at least 2 characters.';
+                }
+                
+                $this->validate($rules, $messages);
                 break;
                 
             case 4:
@@ -292,45 +292,68 @@ new class extends Component {
         ]);
 
         try {
+            // Prepare JSON data according to new structure
+            $integrationDetails = [
+                'integrationName' => $this->integrationName,
+                'integrationDesc' => $this->description,
+            ];
+
+            $apiDetails = [
+                'katanaPimUrl' => $this->katanaPimUrl,
+                'katanaPimApiKey' => $this->katanaPimApiKey,
+                'webshopUrl' => $this->webshopUrl,
+                'wooCommerceApiKey' => $this->wooCommerceApiKey,
+                'wooCommerceApiSecret' => $this->wooCommerceApiSecret,
+            ];
+
+            $uniqueIdentifier = [
+                'identifier' => $this->uniqueIdentifier,
+                'identificationType' => $this->identificationType,
+            ];
+
+            $internalFields = [
+                'fieldName' => $this->fieldName,
+                'fieldGtin' => $this->fieldGtin,
+                'fieldShortDescription' => $this->fieldShortDescription,
+                'fieldLongDescription' => $this->fieldLongDescription,
+                'fieldTaxCategory' => $this->fieldTaxCategory,
+                'selectValue1' => $this->selectValue1,
+                'selectValue2' => $this->selectValue2,
+                'selectValue3' => $this->selectValue3,
+                'selectValue4' => $this->selectValue4,
+                'selectValue5' => $this->selectValue5,
+                'selectValue6' => $this->selectValue6,
+                'selectValue7' => $this->selectValue7,
+                'selectValue8' => $this->selectValue8,
+                'selectValue9' => $this->selectValue9,
+                'selectValue10' => $this->selectValue10,
+                'selectValue11' => $this->selectValue11,
+                'selectValue12' => $this->selectValue12,
+                'selectValue13' => $this->selectValue13,
+                'selectValue14' => $this->selectValue14,
+            ];
+
+            $productCondition = [
+                'condition' => $this->condition,
+                'conditionValue' => $this->conditionValue,
+            ];
+
+            $seo = [
+                'metaTitle' => $this->metaTitle,
+                'metaDescription' => $this->metaDescription,
+                'keywords' => $this->keywords,
+            ];
+
             $integration = Integration::create([
                 'user_id' => Auth::id(),
                 'status' => 'active',
-                'integration_name' => $this->integrationName,
-                'description' => $this->description,
-                'selected_store' => $this->selectedStore,
-                'store_details' => $this->storeDetails,
-                'unique_identifier' => $this->uniqueIdentifier,
-                'identification_type' => $this->identificationType,
-                'condition' => $this->condition,
-                'condition_value' => $this->conditionValue,
-                'meta_title' => $this->metaTitle,
-                'meta_description' => $this->metaDescription,
-                'keywords' => $this->keywords,
-                'katana_pim_url' => $this->katanaPimUrl,
-                'katana_pim_api_key' => $this->katanaPimApiKey,
-                'webshop_url' => $this->webshopUrl,
-                'woo_commerce_api_key' => $this->wooCommerceApiKey,
-                'woo_commerce_api_secret' => $this->wooCommerceApiSecret,
-                'store_mapping' => $this->selectedStore,
-                'field_name' => $this->fieldName,
-                'field_gtin' => $this->fieldGtin,
-                'field_short_description' => $this->fieldShortDescription,
-                'field_long_description' => $this->fieldLongDescription,
-                'field_tax_category' => $this->fieldTaxCategory,
-                'select_value_1' => $this->selectValue1,
-                'select_value_2' => $this->selectValue2,
-                'select_value_3' => $this->selectValue3,
-                'select_value_4' => $this->selectValue4,
-                'select_value_5' => $this->selectValue5,
-                'select_value_6' => $this->selectValue6,
-                'select_value_7' => $this->selectValue7,
-                'select_value_8' => $this->selectValue8,
-                'select_value_9' => $this->selectValue9,
-                'select_value_10' => $this->selectValue10,
-                'select_value_11' => $this->selectValue11,
-                'select_value_12' => $this->selectValue12,
-                'select_value_13' => $this->selectValue13,
-                'select_value_14' => $this->selectValue14,
+                'integrationDetails' => $integrationDetails,
+                'apiDetails' => $apiDetails,
+                'store_details' => $this->store_details,
+                'uniqueIdentifier' => $uniqueIdentifier,
+                'internalFields' => $internalFields,
+                'productCondition' => $productCondition,
+                'seo' => $seo,
             ]);
 
             // Clear the draft session after successful save
@@ -356,24 +379,24 @@ new class extends Component {
                 return count($filled) / count($fields) * 100;
                 
             case 2:
+                $fields = ['katanaPimUrl', 'katanaPimApiKey', 'webshopUrl', 'wooCommerceApiKey', 'wooCommerceApiSecret'];
+                $filled = array_filter(array_map(fn($field) => !empty($this->$field), $fields));
+                return count($filled) / count($fields) * 100;
+                
+            case 3:
                 $fields = ['selectedStore'];
                 $filled = array_filter(array_map(fn($field) => !empty($this->$field), $fields));
                 $completion = count($filled) / count($fields) * 100;
                 
                 // If custom store is selected, also check store details
                 if ($this->selectedStore === 'new_store' && !empty($this->selectedStore)) {
-                    $storeFields = ['storeDetails.store_name'];
+                    $storeFields = ['store_details.store_name'];
                     $storeFilled = array_filter(array_map(fn($field) => !empty(data_get($this, $field)), $storeFields));
                     $storeCompletion = count($storeFilled) / count($storeFields) * 100;
                     $completion = ($completion + $storeCompletion) / 2;
                 }
                 
                 return $completion;
-                
-            case 3:
-                $fields = ['katanaPimUrl', 'katanaPimApiKey', 'webshopUrl', 'wooCommerceApiKey', 'wooCommerceApiSecret'];
-                $filled = array_filter(array_map(fn($field) => !empty($this->$field), $fields));
-                return count($filled) / count($fields) * 100;
                 
             case 4:
                 $fields = ['selectedStore'];
@@ -529,21 +552,21 @@ new class extends Component {
         $this->selectedStore = $storeType;
         
         if ($storeType === 'store1') {
-            $this->storeDetails = [
+            $this->store_details = [
                 'store_name' => 'Store 1',
                 'store_type' => 'main',
                 'store_url' => '',
                 'store_description' => 'Main Online Store'
             ];
         } elseif ($storeType === 'store2') {
-            $this->storeDetails = [
+            $this->store_details = [
                 'store_name' => 'Store 2',
                 'store_type' => 'secondary',
                 'store_url' => '',
                 'store_description' => 'Secondary Store'
             ];
         } elseif ($storeType === 'new_store') {
-            $this->storeDetails = [
+            $this->store_details = [
                 'store_name' => '',
                 'store_type' => '',
                 'store_url' => '',
@@ -555,7 +578,7 @@ new class extends Component {
             $selectedStore = collect($this->stores)->firstWhere('Id', $storeId);
             
             if ($selectedStore) {
-                $this->storeDetails = [
+                $this->store_details = [
                     'store_name' => $selectedStore['Name'],
                     'store_type' => 'api_store',
                     'store_url' => '',
@@ -1005,8 +1028,39 @@ new class extends Component {
                                         <span style="font-size: 0.875rem; color: #374151;">{{ $field }}</span>
                                         <select wire:model="fieldMappings.{{ $index }}" style="padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem; font-size: 0.875rem; background-color: white; min-width: 250px;">
                                             <option value="">Select...</option>
-                                            <option value="SKU-1">SKU-1</option>
-                                            <!-- Add more options as needed -->
+                                            <option value="SKU">SKU</option>
+                                            <option value="PublishedStatus">PublishedStatus</option>
+                                            <option value="Title">Title</option>
+                                            <option value="ShortDescription">ShortDescription</option>
+                                            <option value="FullDescription">FullDescription</option>
+                                            <option value="MetaTitle">MetaTitle</option>
+                                            <option value="MetaDescription">MetaDescription</option>
+                                            <option value="Slug">Slug</option>
+                                            <option value="GTIN">GTIN</option>
+                                            <option value="UPC">UPC</option>
+                                            <option value="EAN">EAN</option>
+                                            <option value="ISBN">ISBN</option>
+                                            <option value="TaxCategory">TaxCategory</option>
+                                            <option value="ManufacturerPartNumber">ManufacturerPartNumber</option>
+                                            <option value="AvailableStartDate">AvailableStartDate</option>
+                                            <option value="AvailableEndDate">AvailableEndDate</option>
+                                            <option value="StockQuantity">StockQuantity</option>
+                                            <option value="Specifications">Specifications</option>
+                                            <option value="RegularPrice">RegularPrice</option>
+                                            <option value="SalePrice">SalePrice</option>
+                                            <option value="ProductCost">ProductCost</option>
+                                            <option value="Images">Images</option>
+                                            <option value="Categories">Categories</option>
+                                            <option value="RelatedProducts">RelatedProducts</option>
+                                            <option value="CrossSellProducts">CrossSellProducts</option>
+                                            <option value="Attachments">Attachments</option>
+                                            <option value="ProductVisibility">ProductVisibility</option>
+                                            <option value="Upsells">Upsells</option>
+                                            <option value="Length">Length</option>
+                                            <option value="Width">Width</option>
+                                            <option value="Height">Height</option>
+                                            <option value="Weight">Weight</option>
+                                            <option value="Manufacturer">Manufacturer</option>
                                         </select>
                                         <button type="button" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 0.25rem;" wire:click="removeField({{ $index }})">✕</button>
                                     </div>
@@ -1103,9 +1157,9 @@ new class extends Component {
                                         </div>
                                     <div>
                                         <label style="display: block; font-size: 0.875rem; font-weight: 500; color: #374151; margin-bottom: 0.5rem;">
-                                            Keywords
+                                            Slug
                                         </label>
-                                        <input wire:model="keywords" type="text" placeholder="Enter keywords (comma separated)" style="
+                                        <input wire:model="keywords" type="text" placeholder="Enter slug" style="
                                             width: 100%; 
                                             padding: 0.75rem; 
                                             border: 1px solid #d1d5db; 

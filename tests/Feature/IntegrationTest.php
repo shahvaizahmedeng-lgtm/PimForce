@@ -14,14 +14,28 @@ test('user can create integration', function () {
     $integrationData = [
         'user_id' => $user->id,
         'status' => 'active',
-        'katana_pim_url' => 'https://katana.example.com',
-        'katana_pim_api_key' => 'test_api_key_123',
-        'webshop_url' => 'https://shop.example.com',
-        'woo_commerce_api_key' => 'woo_key_123',
-        'woo_commerce_api_secret' => 'woo_secret_123',
-        'selected_store' => 'store1',
-        'integration_name' => 'Test Integration',
-        'description' => 'Test integration description',
+        'integrationDetails' => [
+            'integrationName' => 'Test Integration',
+            'integrationDesc' => 'Test integration description',
+        ],
+        'apiDetails' => [
+            'katanaPimUrl' => 'https://katana.example.com',
+            'katanaPimApiKey' => 'test_api_key_123',
+            'webshopUrl' => 'https://shop.example.com',
+            'wooCommerceApiKey' => 'woo_key_123',
+            'wooCommerceApiSecret' => 'woo_secret_123',
+        ],
+        'store_details' => [
+            'store_name' => 'Store 1',
+            'store_type' => 'main',
+        ],
+        'uniqueIdentifier' => [
+            'identifier' => 'SKU',
+            'identificationType' => 'SKU-1',
+        ],
+        'internalFields' => [],
+        'productCondition' => [],
+        'seo' => [],
     ];
     
     $integration = Integration::create($integrationData);
@@ -29,11 +43,12 @@ test('user can create integration', function () {
     $this->assertDatabaseHas('integrations', [
         'id' => $integration->id,
         'user_id' => $user->id,
-        'katana_pim_url' => 'https://katana.example.com',
         'status' => 'active',
     ]);
     
     $this->assertEquals($user->id, $integration->user->id);
+    $this->assertEquals('Test Integration', $integration->integrationName);
+    $this->assertEquals('https://katana.example.com', $integration->katanaPimUrl);
 });
 
 test('integration belongs to user', function () {
