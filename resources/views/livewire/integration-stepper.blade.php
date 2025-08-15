@@ -9,8 +9,8 @@ new class extends Component {
     public $currentStep = 1;
     public $steps = [
         'Integrate',
-        'Details',
         'Store', 
+        'Details',
         'Fields',
         'Specifications',
         'Synchronisations'
@@ -27,6 +27,7 @@ new class extends Component {
     ];
     public $uniqueIdentifier = '';
     public $identificationType = 'SKU-1';
+    public $availableIdentifiers = ['Product ID', 'SKU-1', 'EAN', 'UPC', 'Custom'];
     public $condition = '';
     public $conditionValue = '';
     public $metaTitle = '';
@@ -70,6 +71,30 @@ new class extends Component {
     public $selectValue12 = '';
     public $selectValue13 = '';
     public $selectValue14 = '';
+
+    public array $fields = [
+        'SKU',
+        'GTIN',
+        'Name',
+        'Short Description',
+        'Full Description',
+        'Meta Title',
+        'Meta Description',
+        'Slug',
+        'Manufacturer Part Number',
+        'Stock Quantity',
+        'Old Price',
+        'Price',
+        'Product Cost',
+        'Special Price',
+        'Manufacturer',
+        'Specifications Array',
+        'Categories Array',
+        'Attachments',
+        'Related Products',
+        'Cross-sell Products',
+    ];
+    public array $fieldMappings = [];
 
     public function mount()
     {
@@ -444,11 +469,11 @@ new class extends Component {
     public function fetchStores()
     {
         $this->loadingStores = true;
-        
         try {
-            // Use the provided API endpoint and key
-            $url = 'https://leenweb.katanapim.com/api/v1/Store/GetAll';
-            $apiKey = 'c26T7NYlHUF9!c3oYErWN6Ehyhe&EGM0uVyEM?UB';
+            // Use the KatanaPIM URL and API key from the previous step
+            $baseUrl = rtrim($this->katanaPimUrl, '/');
+            $url = $baseUrl . '/api/v1/Store/GetAll';
+            $apiKey = $this->katanaPimApiKey;
             
             $http = \Illuminate\Support\Facades\Http::withHeaders([
                 'ApiKey' => $apiKey,
@@ -541,6 +566,18 @@ new class extends Component {
         }
         
         $this->saveProgress();
+    }
+
+    public function removeField($index)
+    {
+        if (isset($this->fieldMappings[$index])) {
+            unset($this->fieldMappings[$index]);
+            $this->fieldMappings = array_values($this->fieldMappings);
+        }
+        if (isset($this->fields[$index])) {
+            unset($this->fields[$index]);
+            $this->fields = array_values($this->fields);
+        }
     }
 }; ?>
 
@@ -666,237 +703,7 @@ new class extends Component {
                     </div>
 
                 @elseif($currentStep === 2)
-                    <!-- Step 2: Store Selection -->
-                    <div style="display: flex; flex-direction: column; gap: 2rem;" wire:init="loadStoresIfNeeded">
-                        <div>
-                            <h3 style="font-size: 1.125rem; font-weight: 600; color: #111827; margin-bottom: 1rem;">Store Selection</h3>
-                            <p style="color: #6b7280; margin-bottom: 2rem;">Choose the store you want to integrate with KatanaPIM.</p>
-                            
-                            <!-- Load Stores Button -->
-                            <div style="margin-bottom: 1.5rem;">
-                                <button type="button" wire:click="fetchStores" wire:loading.attr="disabled" style="
-                                    padding: 0.5rem 1rem;
-                                    background-color: #3b82f6;
-                                    color: white;
-                                    border: none;
-                                    border-radius: 0.375rem;
-                                    font-size: 0.875rem;
-                                    cursor: pointer;
-                                    margin-bottom: 1rem;
-                                " wire:loading.class="opacity-50">
-                                    <span wire:loading.remove>Load Stores from API</span>
-                                    <span wire:loading>Loading...</span>
-                                </button>
-                                @error('stores') <span style="color: #ef4444; font-size: 0.75rem;">{{ $message }}</span> @enderror
-                            </div>
-                            
-                            @if($selectedStore)
-                                <div style="
-                                    background-color: #f0f9ff; 
-                                    border: 1px solid #0ea5e9; 
-                                    border-radius: 0.5rem; 
-                                    padding: 1rem; 
-                                    margin-bottom: 1.5rem;
-                                ">
-                                    <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                        <svg style="width: 1.25rem; height: 1.25rem; color: #0ea5e9;" fill="currentColor" viewBox="0 0 20 20">
-                                            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
-                                        </svg>
-                                        <span style="color: #0c4a6e; font-weight: 500;">
-                                            @if($selectedStore === 'new_store')
-                                                Custom store configuration
-                                            @else
-                                                Store selected: {{ $selectedStore }}
-                                            @endif
-                                        </span>
-                                    </div>
-                                </div>
-                            @endif
-                            
-                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem;">
-                                @if(!empty($stores))
-                                    @foreach($stores as $store)
-                                        <div style="
-                                            border: 2px solid #e5e7eb; 
-                                            border-radius: 0.5rem; 
-                                            padding: 1.5rem; 
-                                            cursor: pointer;
-                                            transition: all 0.2s;
-                                            background-color: white;
-                                        " @if($selectedStore === 'store_' . $store['Id']) style="border-color: #9333ea; background-color: #faf5ff;" @endif wire:click="selectStore('store_{{ $store['Id'] }}')">
-                                            <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
-                                                <div style="
-                                                    width: 3rem; 
-                                                    height: 3rem; 
-                                                    background-color: #dbeafe; 
-                                                    border-radius: 50%; 
-                                                    display: flex; 
-                                                    align-items: center; 
-                                                    justify-content: center;
-                                                ">
-                                                    <svg style="width: 1.5rem; height: 1.5rem; color: #3b82f6;" fill="currentColor" viewBox="0 0 20 20">
-                                                        <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6z"/>
-                                                    </svg>
-                                                </div>
-                                                <div>
-                                                    <h4 style="font-weight: 600; color: #111827; margin: 0;">{{ $store['Name'] }}</h4>
-                                                    <p style="color: #6b7280; font-size: 0.875rem; margin: 0;">{{ $store['SystemName'] }}</p>
-                                                </div>
-                                            </div>
-                                            <p style="color: #6b7280; font-size: 0.875rem; margin: 0;">Store ID: {{ $store['Id'] }}</p>
-                                        </div>
-                                    @endforeach
-                                @else
-                                    <!-- Fallback Store Options -->
-                                    <div style="
-                                        border: 2px solid #e5e7eb; 
-                                        border-radius: 0.5rem; 
-                                        padding: 1.5rem; 
-                                        cursor: pointer;
-                                        transition: all 0.2s;
-                                        background-color: white;
-                                    " @if($selectedStore === 'store1') style="border-color: #9333ea; background-color: #faf5ff;" @endif wire:click="selectStore('store1')">
-                                        <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
-                                            <div style="
-                                                width: 3rem; 
-                                                height: 3rem; 
-                                                background-color: #dbeafe; 
-                                                border-radius: 50%; 
-                                                display: flex; 
-                                                align-items: center; 
-                                                justify-content: center;
-                                            ">
-                                                <svg style="width: 1.5rem; height: 1.5rem; color: #3b82f6;" fill="currentColor" viewBox="0 0 20 20">
-                                                    <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6z"/>
-                                                </svg>
-                                            </div>
-                                            <div>
-                                                <h4 style="font-weight: 600; color: #111827; margin: 0;">Store 1</h4>
-                                                <p style="color: #6b7280; font-size: 0.875rem; margin: 0;">Main Online Store</p>
-                                            </div>
-                                        </div>
-                                        <p style="color: #6b7280; font-size: 0.875rem; margin: 0;">Primary e-commerce store for your products</p>
-                                    </div>
-                                    
-                                    <div style="
-                                        border: 2px solid #e5e7eb; 
-                                        border-radius: 0.5rem; 
-                                        padding: 1.5rem; 
-                                        cursor: pointer;
-                                        transition: all 0.2s;
-                                        background-color: white;
-                                    " @if($selectedStore === 'store2') style="border-color: #9333ea; background-color: #faf5ff;" @endif wire:click="selectStore('store2')">
-                                        <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
-                                            <div style="
-                                                width: 3rem; 
-                                                height: 3rem; 
-                                                background-color: #fef3c7; 
-                                                border-radius: 50%; 
-                                                display: flex; 
-                                                align-items: center; 
-                                                justify-content: center;
-                                            ">
-                                                <svg style="width: 1.5rem; height: 1.5rem; color: #f59e0b;" fill="currentColor" viewBox="0 0 20 20">
-                                                    <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6z"/>
-                                                </svg>
-                                            </div>
-                                            <div>
-                                                <h4 style="font-weight: 600; color: #111827; margin: 0;">Store 2</h4>
-                                                <p style="color: #6b7280; font-size: 0.875rem; margin: 0;">Secondary Store</p>
-                                            </div>
-                                        </div>
-                                        <p style="color: #6b7280; font-size: 0.875rem; margin: 0;">Secondary store for specific product categories</p>
-                                    </div>
-                                @endif
-                            </div>
-                            
-                            @error('selectedStore') 
-                                <div style="color: #ef4444; font-size: 0.875rem; margin-top: 1rem;">
-                                    {{ $message }}
-                                </div>
-                            @enderror
-                            
-                            <!-- Custom Store Details Form -->
-                            <!-- @if($selectedStore === 'new_store')
-                                <div style="
-                                    background-color: white; 
-                                    border: 1px solid #e5e7eb; 
-                                    border-radius: 0.5rem; 
-                                    padding: 1.5rem; 
-                                    margin-top: 2rem;
-                                ">
-                                    <h4 style="font-size: 1rem; font-weight: 600; color: #111827; margin-bottom: 1.5rem;">Custom Store Details</h4>
-                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
-                                        <div>
-                                            <label style="display: block; font-size: 0.875rem; font-weight: 500; color: #374151; margin-bottom: 0.5rem;">
-                                                Store Name *
-                                            </label>
-                                            <input wire:model="storeDetails.store_name" type="text" placeholder="Enter store name" style="
-                                                width: 100%; 
-                                                padding: 0.75rem; 
-                                                border: 1px solid #d1d5db; 
-                                                border-radius: 0.375rem; 
-                                                font-size: 0.875rem;
-                                                background-color: white;
-                                            ">
-                                            @error('storeDetails.store_name') <span style="color: #ef4444; font-size: 0.75rem;">{{ $message }}</span> @enderror
-                                        </div>
-                                        <div>
-                                            <label style="display: block; font-size: 0.875rem; font-weight: 500; color: #374151; margin-bottom: 0.5rem;">
-                                                Store Type
-                                            </label>
-                                            <select wire:model="storeDetails.store_type" style="
-                                                width: 100%; 
-                                                padding: 0.75rem; 
-                                                border: 1px solid #d1d5db; 
-                                                border-radius: 0.375rem; 
-                                                font-size: 0.875rem;
-                                                background-color: white;
-                                            ">
-                                                <option value="">Select store type</option>
-                                                <option value="main">Main Store</option>
-                                                <option value="secondary">Secondary Store</option>
-                                                <option value="marketplace">Marketplace</option>
-                                                <option value="wholesale">Wholesale</option>
-                                                <option value="other">Other</option>
-                                            </select>
-                                        </div>
-                                        <div style="grid-column: 1 / -1;">
-                                            <label style="display: block; font-size: 0.875rem; font-weight: 500; color: #374151; margin-bottom: 0.5rem;">
-                                                Store URL
-                                            </label>
-                                            <input wire:model="storeDetails.store_url" type="url" placeholder="Enter store URL (optional)" style="
-                                                width: 100%; 
-                                                padding: 0.75rem; 
-                                                border: 1px solid #d1d5db; 
-                                                border-radius: 0.375rem; 
-                                                font-size: 0.875rem;
-                                                background-color: white;
-                                            ">
-                                        </div>
-                                        <div style="grid-column: 1 / -1;">
-                                            <label style="display: block; font-size: 0.875rem; font-weight: 500; color: #374151; margin-bottom: 0.5rem;">
-                                                Store Description
-                                            </label>
-                                            <textarea wire:model="storeDetails.store_description" placeholder="Enter store description (optional)" style="
-                                                width: 100%; 
-                                                padding: 0.75rem; 
-                                                border: 1px solid #d1d5db; 
-                                                border-radius: 0.375rem; 
-                                                font-size: 0.875rem;
-                                                background-color: white;
-                                                resize: vertical;
-                                                min-height: 2.5rem;
-                                            "></textarea>
-                                        </div>
-                                    </div>
-                                </div>
-                            @endif -->
-                        </div>
-                    </div>
-
-                @elseif($currentStep === 3)
-                    <!-- Step 3: API keys -->
+                    <!-- Step 2: API keys -->
                     <div style="display: flex; flex-direction: column; gap: 2rem;">
                         <!-- KatanaPIM Section -->
                         <div style="
@@ -993,6 +800,155 @@ new class extends Component {
                         </div>
                     </div>
 
+                @elseif($currentStep === 3)
+                    <!-- Step 3: Store Selection -->
+                    <div style="display: flex; flex-direction: column; gap: 2rem;" wire:init="loadStoresIfNeeded">
+                        <div>
+                            <h3 style="font-size: 1.125rem; font-weight: 600; color: #111827; margin-bottom: 1rem;">Store Selection</h3>
+                            <p style="color: #6b7280; margin-bottom: 2rem;">Choose the store you want to integrate with KatanaPIM.</p>
+                            <!-- Load Stores Button -->
+                            <div style="margin-bottom: 1.5rem;">
+                                <button type="button" wire:click="fetchStores" wire:loading.attr="disabled" style="
+                                    padding: 0.5rem 1rem;
+                                    background-color: #3b82f6;
+                                    color: white;
+                                    border: none;
+                                    border-radius: 0.375rem;
+                                    font-size: 0.875rem;
+                                    cursor: pointer;
+                                    margin-bottom: 1rem;
+                                " wire:loading.class="opacity-50">
+                                    <span wire:loading.remove>Load Stores from API</span>
+                                    <span wire:loading>Loading...</span>
+                                </button>
+                                @error('stores') <span style="color: #ef4444; font-size: 0.75rem;">{{ $message }}</span> @enderror
+                            </div>
+                            @if($selectedStore)
+                                <div style="
+                                    background-color: #f0f9ff; 
+                                    border: 1px solid #0ea5e9; 
+                                    border-radius: 0.5rem; 
+                                    padding: 1rem; 
+                                    margin-bottom: 1.5rem;
+                                ">
+                                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                        <svg style="width: 1.25rem; height: 1.25rem; color: #0ea5e9;" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+                                        </svg>
+                                        <span style="color: #0c4a6e; font-weight: 500;">
+                                            @if($selectedStore === 'new_store')
+                                                Custom store configuration
+                                            @else
+                                                Store selected: {{ $selectedStore }}
+                                            @endif
+                                        </span>
+                                    </div>
+                                </div>
+                            @endif
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem;">
+                                @if(!empty($stores))
+                                    @foreach($stores as $store)
+                                        <div style="
+                                            border: 2px solid #e5e7eb; 
+                                            border-radius: 0.5rem; 
+                                            padding: 1.5rem; 
+                                            cursor: pointer;
+                                            transition: all 0.2s;
+                                            background-color: white;
+                                        " @if($selectedStore === 'store_' . $store['Id']) style="border-color: #9333ea; background-color: #faf5ff;" @endif wire:click="selectStore('store_{{ $store['Id'] }}')">
+                                            <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
+                                                <div style="
+                                                    width: 3rem; 
+                                                    height: 3rem; 
+                                                    background-color: #dbeafe; 
+                                                    border-radius: 50%; 
+                                                    display: flex; 
+                                                    align-items: center; 
+                                                    justify-content: center;
+                                                ">
+                                                    <svg style="width: 1.5rem; height: 1.5rem; color: #3b82f6;" fill="currentColor" viewBox="0 0 20 20">
+                                                        <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6z"/>
+                                                    </svg>
+                                                </div>
+                                                <div>
+                                                    <h4 style="font-weight: 600; color: #111827; margin: 0;">{{ $store['Name'] }}</h4>
+                                                    <p style="color: #6b7280; font-size: 0.875rem; margin: 0;">{{ $store['SystemName'] }}</p>
+                                                </div>
+                                            </div>
+                                            <p style="color: #6b7280; font-size: 0.875rem; margin: 0;">Store ID: {{ $store['Id'] }}</p>
+                                        </div>
+                                    @endforeach
+                                @else
+                                    <!-- Fallback Store Options -->
+                                    <div style="
+                                        border: 2px solid #e5e7eb; 
+                                        border-radius: 0.5rem; 
+                                        padding: 1.5rem; 
+                                        cursor: pointer;
+                                        transition: all 0.2s;
+                                        background-color: white;
+                                    " @if($selectedStore === 'store1') style="border-color: #9333ea; background-color: #faf5ff;" @endif wire:click="selectStore('store1')">
+                                        <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
+                                            <div style="
+                                                width: 3rem; 
+                                                height: 3rem; 
+                                                background-color: #dbeafe; 
+                                                border-radius: 50%; 
+                                                display: flex; 
+                                                align-items: center; 
+                                                justify-content: center;
+                                            ">
+                                                <svg style="width: 1.5rem; height: 1.5rem; color: #3b82f6;" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6z"/>
+                                                </svg>
+                                            </div>
+                                            <div>
+                                                <h4 style="font-weight: 600; color: #111827; margin: 0;">Store 1</h4>
+                                                <p style="color: #6b7280; font-size: 0.875rem; margin: 0;">Main Online Store</p>
+                                            </div>
+                                        </div>
+                                        <p style="color: #6b7280; font-size: 0.875rem; margin: 0;">Primary e-commerce store for your products</p>
+                                    </div>
+                                    <div style="
+                                        border: 2px solid #e5e7eb; 
+                                        border-radius: 0.5rem; 
+                                        padding: 1.5rem; 
+                                        cursor: pointer;
+                                        transition: all 0.2s;
+                                        background-color: white;
+                                    " @if($selectedStore === 'store2') style="border-color: #9333ea; background-color: #faf5ff;" @endif wire:click="selectStore('store2')">
+                                        <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
+                                            <div style="
+                                                width: 3rem; 
+                                                height: 3rem; 
+                                                background-color: #fef3c7; 
+                                                border-radius: 50%; 
+                                                display: flex; 
+                                                align-items: center; 
+                                                justify-content: center;
+                                            ">
+                                                <svg style="width: 1.5rem; height: 1.5rem; color: #f59e0b;" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6z"/>
+                                                </svg>
+                                            </div>
+                                            <div>
+                                                <h4 style="font-weight: 600; color: #111827; margin: 0;">Store 2</h4>
+                                                <p style="color: #6b7280; font-size: 0.875rem; margin: 0;">Secondary Store</p>
+                                            </div>
+                                        </div>
+                                        <p style="color: #6b7280; font-size: 0.875rem; margin: 0;">Secondary store for specific product categories</p>
+                                    </div>
+                                @endif
+                            </div>
+                            @error('selectedStore') 
+                                <div style="color: #ef4444; font-size: 0.875rem; margin-top: 1rem;">
+                                    {{ $message }}
+                                </div>
+                            @enderror
+                            <!-- Custom Store Details Form (commented out) -->
+                        </div>
+                    </div>
+
                 @elseif($currentStep === 4)
                     <!-- Step 4: Fields -->
                     <div style="display: flex; flex-direction: column; gap: 2rem;">
@@ -1043,282 +999,20 @@ new class extends Component {
                                 <div>
                                 <h4 style="font-size: 1rem; font-weight: 600; color: #111827; margin-bottom: 1rem;">Internal Fields</h4>
                                 <div style="display: flex; flex-direction: column; gap: 1rem;">
-                                    <!-- Field mappings -->
+                                    <!-- Field mappings (dynamic) -->
+                                @foreach ($fields as $index => $field)
                                     <div style="display: grid; grid-template-columns: 1fr auto auto; gap: 1rem; align-items: center;">
-                                        <span style="font-size: 0.875rem; color: #374151;">Name</span>
-                                        <select wire:model="selectValue1" style="
-                                            padding: 0.5rem; 
-                                        border: 1px solid #d1d5db; 
-                                        border-radius: 0.375rem; 
-                                        font-size: 0.875rem;
-                                        background-color: white;
-                                            min-width: 250px;
-                                        ">
+                                        <span style="font-size: 0.875rem; color: #374151;">{{ $field }}</span>
+                                        <select wire:model="fieldMappings.{{ $index }}" style="padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem; font-size: 0.875rem; background-color: white; min-width: 250px;">
+                                            <option value="">Select...</option>
                                             <option value="SKU-1">SKU-1</option>
+                                            <!-- Add more options as needed -->
                                         </select>
-                                        <button type="button" style="
-                                            background: none; 
-                                            border: none; 
-                                            color: #ef4444; 
-                                            cursor: pointer;
-                                            padding: 0.25rem;
-                                        ">✕</button>
-                                </div>
-                                    
-                                    <div style="display: grid; grid-template-columns: 1fr auto auto; gap: 1rem; align-items: center;">
-                                        <span style="font-size: 0.875rem; color: #374151;">Description</span>
-                                        <select wire:model="selectValue2" style="
-                                            padding: 0.5rem; 
-                                            border: 1px solid #d1d5db; 
-                                            border-radius: 0.375rem; 
-                                            font-size: 0.875rem;
-                                            background-color: white;
-                                            min-width: 250px;
-                                        ">
-                                            <option value="SKU-1">SKU-1</option>
-                                        </select>
-                                        <button type="button" style="
-                                            background: none; 
-                                            border: none; 
-                                            color: #ef4444; 
-                                            cursor: pointer;
-                                            padding: 0.25rem;
-                                        ">✕</button>
-                            </div>
-                                    
-                                    <div style="display: grid; grid-template-columns: 1fr auto auto; gap: 1rem; align-items: center;">
-                                        <span style="font-size: 0.875rem; color: #374151;">Price</span>
-                                        <select wire:model="selectValue3" style="
-                                            padding: 0.5rem; 
-                                            border: 1px solid #d1d5db; 
-                                            border-radius: 0.375rem; 
-                                            font-size: 0.875rem;
-                                            background-color: white;
-                                            min-width: 250px;
-                                        ">
-                                            <option value="SKU-1">SKU-1</option>
-                                        </select>
-                                        <button type="button" style="
-                                            background: none; 
-                                            border: none; 
-                                            color: #ef4444; 
-                                            cursor: pointer;
-                                            padding: 0.25rem;
-                                        ">✕</button>
-                        </div>
-                                    
-                                    <div style="display: grid; grid-template-columns: 1fr auto auto; gap: 1rem; align-items: center;">
-                                        <span style="font-size: 0.875rem; color: #374151;">Quantity</span>
-                                        <select wire:model="selectValue4" style="
-                                            padding: 0.5rem; 
-                                            border: 1px solid #d1d5db; 
-                                            border-radius: 0.375rem; 
-                                            font-size: 0.875rem;
-                                            background-color: white;
-                                            min-width: 250px;
-                                        ">
-                                            <option value="SKU-1">SKU-1</option>
-                                        </select>
-                                        <button type="button" style="
-                                            background: none; 
-                                            border: none; 
-                                            color: #ef4444; 
-                                            cursor: pointer;
-                                            padding: 0.25rem;
-                                        ">✕</button>
-                    </div>
-
-                                    <div style="display: grid; grid-template-columns: 1fr auto auto; gap: 1rem; align-items: center;">
-                                        <span style="font-size: 0.875rem; color: #374151;">Category</span>
-                                        <select wire:model="selectValue5" style="
-                                            padding: 0.5rem; 
-                                            border: 1px solid #d1d5db; 
-                                            border-radius: 0.375rem; 
-                                            font-size: 0.875rem;
-                                            background-color: white;
-                                            min-width: 250px;
-                                        ">
-                                            <option value="SKU-1">SKU-1</option>
-                                        </select>
-                                        <button type="button" style="
-                                            background: none; 
-                                            border: none; 
-                                            color: #ef4444; 
-                                            cursor: pointer;
-                                            padding: 0.25rem;
-                                        ">✕</button>
+                                        <button type="button" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 0.25rem;" wire:click="removeField({{ $index }})">✕</button>
                                     </div>
-                                    
-                                    <div style="display: grid; grid-template-columns: 1fr auto auto; gap: 1rem; align-items: center;">
-                                        <span style="font-size: 0.875rem; color: #374151;">Brand</span>
-                                        <select wire:model="selectValue6" style="
-                                            padding: 0.5rem; 
-                                            border: 1px solid #d1d5db; 
-                                            border-radius: 0.375rem; 
-                                            font-size: 0.875rem;
-                                            background-color: white;
-                                            min-width: 250px;
-                                        ">
-                                            <option value="SKU-1">SKU-1</option>
-                                        </select>
-                                        <button type="button" style="
-                                            background: none; 
-                                            border: none; 
-                                            color: #ef4444; 
-                                    cursor: pointer;
-                                            padding: 0.25rem;
-                                        ">✕</button>
-                                    </div>
-                                    
-                                    <div style="display: grid; grid-template-columns: 1fr auto auto; gap: 1rem; align-items: center;">
-                                        <span style="font-size: 0.875rem; color: #374151;">Weight</span>
-                                        <select wire:model="selectValue7" style="
-                                            padding: 0.5rem; 
-                                            border: 1px solid #d1d5db; 
-                                            border-radius: 0.375rem; 
-                                            font-size: 0.875rem;
-                                    background-color: white;
-                                            min-width: 250px;
-                                        ">
-                                            <option value="SKU-1">SKU-1</option>
-                                        </select>
-                                        <button type="button" style="
-                                            background: none; 
-                                            border: none; 
-                                            color: #ef4444; 
-                                            cursor: pointer;
-                                            padding: 0.25rem;
-                                        ">✕</button>
-                                        </div>
-                                    
-                                    <div style="display: grid; grid-template-columns: 1fr auto auto; gap: 1rem; align-items: center;">
-                                        <span style="font-size: 0.875rem; color: #374151;">Length</span>
-                                        <select wire:model="selectValue8" style="
-                                            padding: 0.5rem; 
-                                            border: 1px solid #d1d5db; 
-                                            border-radius: 0.375rem; 
-                                            font-size: 0.875rem;
-                                            background-color: white;
-                                            min-width: 250px;
-                                        ">
-                                            <option value="SKU-1">SKU-1</option>
-                                        </select>
-                                        <button type="button" style="
-                                            background: none; 
-                                            border: none; 
-                                            color: #ef4444; 
-                                            cursor: pointer;
-                                            padding: 0.25rem;
-                                        ">✕</button>
-                                        </div>
-                                    
-                                    <div style="display: grid; grid-template-columns: 1fr auto auto; gap: 1rem; align-items: center;">
-                                        <span style="font-size: 0.875rem; color: #374151;">Width</span>
-                                        <select wire:model="selectValue9" style="
-                                            padding: 0.5rem; 
-                                            border: 1px solid #d1d5db; 
-                                            border-radius: 0.375rem; 
-                                            font-size: 0.875rem;
-                                            background-color: white;
-                                            min-width: 250px;
-                                        ">
-                                            <option value="SKU-1">SKU-1</option>
-                                        </select>
-                                        <button type="button" style="
-                                            background: none; 
-                                            border: none; 
-                                            color: #ef4444; 
-                                            cursor: pointer;
-                                            padding: 0.25rem;
-                                        ">✕</button>
-                                </div>
-                                
-                                    <div style="display: grid; grid-template-columns: 1fr auto auto; gap: 1rem; align-items: center;">
-                                        <span style="font-size: 0.875rem; color: #374151;">Height</span>
-                                        <select wire:model="selectValue10" style="
-                                            padding: 0.5rem; 
-                                            border: 1px solid #d1d5db; 
-                                            border-radius: 0.375rem; 
-                                            font-size: 0.875rem;
-                                            background-color: white;
-                                            min-width: 250px;
-                                        ">
-                                            <option value="SKU-1">SKU-1</option>
-                                        </select>
-                                        <button type="button" style="
-                                            background: none; 
-                                            border: none; 
-                                            color: #ef4444; 
-                                    cursor: pointer;
-                                            padding: 0.25rem;
-                                        ">✕</button>
-                                    </div>
-                                    
-                                    <div style="display: grid; grid-template-columns: 1fr auto auto; gap: 1rem; align-items: center;">
-                                        <span style="font-size: 0.875rem; color: #374151;">Image URL</span>
-                                        <select wire:model="selectValue11" style="
-                                            padding: 0.5rem; 
-                                            border: 1px solid #d1d5db; 
-                                            border-radius: 0.375rem; 
-                                            font-size: 0.875rem;
-                                    background-color: white;
-                                            min-width: 250px;
-                                        ">
-                                            <option value="SKU-1">SKU-1</option>
-                                        </select>
-                                        <button type="button" style="
-                                            background: none; 
-                                            border: none; 
-                                            color: #ef4444; 
-                                            cursor: pointer;
-                                            padding: 0.25rem;
-                                        ">✕</button>
-                                </div>
-                                
-                                    <div style="display: grid; grid-template-columns: 1fr auto auto; gap: 1rem; align-items: center;">
-                                        <span style="font-size: 0.875rem; color: #374151;">Product URL</span>
-                                        <select wire:model="selectValue12" style="
-                                            padding: 0.5rem; 
-                                            border: 1px solid #d1d5db; 
-                                            border-radius: 0.375rem; 
-                                            font-size: 0.875rem;
-                                            background-color: white;
-                                            min-width: 250px;
-                                        ">
-                                            <option value="SKU-1">SKU-1</option>
-                                        </select>
-                                        <button type="button" style="
-                                            background: none; 
-                                            border: none; 
-                                            color: #ef4444; 
-                                    cursor: pointer;
-                                            padding: 0.25rem;
-                                        ">✕</button>
-                                    </div>
-                                    
-                                    <div style="display: grid; grid-template-columns: 1fr auto auto; gap: 1rem; align-items: center;">
-                                        <span style="font-size: 0.875rem; color: #374151;">Status</span>
-                                        <select wire:model="selectValue13" style="
-                                            padding: 0.5rem; 
-                                            border: 1px solid #d1d5db; 
-                                            border-radius: 0.375rem; 
-                                            font-size: 0.875rem;
-                                            background-color: white;
-                                            min-width: 250px;
-                                        ">
-                                            <option value="SKU-1">SKU-1</option>
-                                        </select>
-                                        <button type="button" style="
-                                            background: none; 
-                                            border: none; 
-                                            color: #ef4444; 
-                                            cursor: pointer;
-                                            padding: 0.25rem;
-                                        ">✕</button>
-                                    </div>
+                                @endforeach
                                 </div>
                             </div>
-                                </div>
                     </div>
 
                 @elseif($currentStep === 5)
