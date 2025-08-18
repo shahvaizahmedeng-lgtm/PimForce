@@ -129,8 +129,8 @@ def coalesce(*values: Any) -> Any:
 
 def extract_integration_config(row: Dict[str, Any]) -> Dict[str, Any]:
 	"""Normalize integration row into a common config dict."""
-	api_details = row.get("apiDetails") or row.get("apDetails") or {}
-	store_details = row.get("store_details") or {}
+	api_details = row.get("api_data") or row.get("apDetails") or {}
+	store_details = row.get("store_data") or {}
 	unique_identifier = (
 		row.get("unique_identifier")
 		or (row.get("uniqueIdentifier") or {}).get("identificationType")
@@ -138,21 +138,24 @@ def extract_integration_config(row: Dict[str, Any]) -> Dict[str, Any]:
 
 	cfg = {
 		"id": row.get("id"),
-		"katana_url": coalesce(row.get("katana_pim_url"), (api_details or {}).get("katanaPimUrl")),
-		"katana_api_key": coalesce(row.get("katana_pim_api_key"), (api_details or {}).get("katanaApiKey")),
-		"webshop_url": coalesce(row.get("webshop_url"), (api_details or {}).get("webshopUrl")),
-		"woo_key": coalesce(row.get("woo_commerce_api_key"), (api_details or {}).get("wooApiKey")),
-		"woo_secret": coalesce(row.get("woo_commerce_api_secret"), (api_details or {}).get("wooApiSecret")),
-		"selected_store": row.get("selected_store"),
+		"katana_url": coalesce(row.get("katanaPimUrl"), (api_details or {}).get("katanaPimUrl")),
+		"katana_api_key": coalesce(api_details.get("katanaPimApiKey"), (api_details or {}).get("katanaApiKey")),
+		"webshop_url": coalesce(row.get("webshopUrl"), (api_details or {}).get("webshopUrl")),
+		"woo_key": coalesce(api_details.get("wooCommerceApiKey"), (api_details or {}).get("wooApiKey")),
+		"woo_secret": coalesce(api_details.get("wooCommerceApiSecret"), (api_details or {}).get("wooApiSecret")),
+		"selected_store": row.get("store_data"),
 		"store_id": (store_details or {}).get("id"),
-		"unique_identifier": unique_identifier or "SKU-1",
+		"unique_identifier": "SKU-1",
+		"field_mappings": row.get("fields_mapping_data"),
+		"seo_data": row.get("seo_data"),
+		# "unique_identifier": unique_identifier.get("katanaPim") or "SKU-1",
 	}
 
 	# Ensure Katana endpoint ends with /api/v1/product
 	if cfg["katana_url"]:
 		base = cfg["katana_url"].rstrip('/')
-		if not base.endswith('/api/v1/product'):
-			base = base + '/api/v1/product'
+		if not base.endswith('/api/v1/product?id=11683'):
+			base = base + '/api/v1/product?id=11683'
 		cfg["katana_url"] = base
 
 	return cfg
@@ -179,7 +182,8 @@ def fetch_katana_products(cfg: Dict[str, Any], timeout: int) -> List[Dict[str, A
 	all_items: List[Dict[str, Any]] = []
 
 	while True:
-		params = {"PageIndex": page_index, "PageSize": page_size}
+		# params = {"PageIndex": page_index, "PageSize": page_size}
+		params = {}
 		store_id = cfg.get("selected_store") or cfg.get("store_id")
 		if store_id:
 			try:
@@ -256,11 +260,46 @@ def derive_sku(product: Dict[str, Any], unique_identifier: str) -> Optional[str]
 	return None
 
 
+def get_mapped_field_value(product: Dict[str, Any], field_mappings: Dict[str, str], woo_field: str) -> Any:
+	"""Get field value from product using field mappings configuration."""
+	if not field_mappings:
+		return None
+	
+	# Find the Katana field name that maps to this WooCommerce field
+	katana_field = None
+	for katana_key, woo_key in field_mappings.items():
+		if woo_key == woo_field:
+			katana_field = katana_key
+			break
+	
+	if not katana_field:
+		return None
+	
+	# Try to get the value from common Katana field locations
+	value = (
+		get_path(product, f'TextFieldsModel.{katana_field}')
+		or get_path(product, f'TextFields.{katana_field}')
+		or get_path(product, katana_field)
+		or product.get(katana_field)
+	)
+	
+	return value
+
+
 def map_product_to_woo(cfg: Dict[str, Any], product: Dict[str, Any]) -> Dict[str, Any]:
-	name = get_path(product, 'TextFieldsModel.Name') or str(product.get('Id', 'Unknown Product'))
+	log.info(f"map_product_to_woo: {cfg}")
+	
+	field_mappings = cfg.get('field_mappings', {})
+	
+	# Get mapped field values
+	mapped_name = get_mapped_field_value(product, field_mappings, 'Title')
+	name = mapped_name or get_path(product, 'TextFieldsModel.Name') or str(product.get('Id', 'Unknown Product'))
+	
+	mapped_sku = get_mapped_field_value(product, field_mappings, 'SKU')
+	sku = mapped_sku or derive_sku(product, cfg.get('unique_identifier') or 'SKU-1') or ''
+	
 	description = get_path(product, 'TextFieldsModel.FullDescription') or ''
 	short_desc = get_path(product, 'TextFieldsModel.ShortDescription') or ''
-	sku = derive_sku(product, cfg.get('unique_identifier') or 'SKU-1') or ''
 
 	regular_price = get_path(product, 'Prices.CurrentPriceBookItem.Price')
 	if not isinstance(regular_price, (int, float, str)):
@@ -285,7 +324,7 @@ def map_product_to_woo(cfg: Dict[str, Any], product: Dict[str, Any]) -> Dict[str
 
 	# Attributes (GTIN + specs)
 	attributes: List[Dict[str, Any]] = []
-	gtin = get_path(product, 'TextFieldsModel.Gtin')
+	gtin = get_mapped_field_value(product, field_mappings, 'GTIN') or get_path(product, 'TextFieldsModel.Gtin')
 	if gtin:
 		attributes.append({"name": "GTIN", "visible": True, "variation": False, "options": [str(gtin)]})
 	for spec in get_path(product, 'Collections.Specs', []) or []:
@@ -358,16 +397,20 @@ def process_integration(cfg: Dict[str, Any], dry_run: bool, timeout: int) -> Tup
 
 	success = 0
 	errors = 0
-	for prod in products:
+	total_products = len(products)
+	
+	log.info(f"Starting sync of {total_products} products from Katana to WooCommerce")
+	
+	for i, prod in enumerate(products, 1):
 		try:
 			sku = derive_sku(prod, cfg.get("unique_identifier") or "SKU-1")
 			if not sku:
-				log.warning("Product missing SKU; skipping")
+				log.warning(f"Product {i}/{total_products} missing SKU; skipping")
 				continue
 
 			payload = map_product_to_woo(cfg, prod)
 			if dry_run:
-				log.info(f"DRY-RUN would upsert SKU={sku}: {json.dumps(payload)[:300]}...")
+				log.info(f"DRY-RUN [{i}/{total_products}] would upsert SKU={sku}: {json.dumps(payload)[:300]}...")
 				success += 1
 				continue
 
@@ -375,14 +418,16 @@ def process_integration(cfg: Dict[str, Any], dry_run: bool, timeout: int) -> Tup
 			if existing:
 				pid = int(existing.get('id'))
 				update_woo_product(woo, base, pid, payload, timeout)
-				log.info(f"Updated Woo product id={pid} SKU={sku}")
+				log.info(f"[{i}/{total_products}] Updated Woo product id={pid} SKU={sku}")
 			else:
 				created = create_woo_product(woo, base, payload, timeout)
-				log.info(f"Created Woo product id={created.get('id')} SKU={sku}")
+				log.info(f"[{i}/{total_products}] Created Woo product id={created.get('id')} SKU={sku}")
 			success += 1
 		except Exception as e:
 			errors += 1
-			log.error(f"Failed to upsert product SKU={derive_sku(prod, cfg.get('unique_identifier') or 'SKU-1')}: {e}")
+			log.error(f"[{i}/{total_products}] Failed to upsert product SKU={derive_sku(prod, cfg.get('unique_identifier') or 'SKU-1')}: {e}")
+	
+	log.info(f"✅ Sync completed for integration {cfg['id']}: {success} successful, {errors} errors out of {total_products} total products")
 	return success, errors
 
 
@@ -407,9 +452,14 @@ def main() -> int:
 
 			total_ok = 0
 			total_err = 0
-			for row in rows:
+			total_integrations = len(rows)
+			
+			log.info(f"🚀 Starting sync process for {total_integrations} integration(s)")
+			
+			for i, row in enumerate(rows, 1):
+				log.info(f"Processing integration {i}/{total_integrations}: id={row['id']}")
 				cfg = extract_integration_config(row)
-				log.info(f"Processing integration id={cfg['id']} katana_url={cfg.get('katana_url')} webshop={cfg.get('webshop_url')}")
+				log.info(f"Configuration: katana_url={cfg.get('katana_url')} webshop={cfg.get('webshop_url')}")
 				try:
 					s_ok, s_err = process_integration(cfg, args.dry_run, timeout)
 					total_ok += s_ok
@@ -418,7 +468,14 @@ def main() -> int:
 					log.error(f"Integration id={cfg['id']} failed: {e}")
 					total_err += 1
 
-			log.info(f"Done. Upserts OK={total_ok} ERR={total_err}")
+			log.info(f"🎉 All integrations completed! Total products synced: {total_ok} successful, {total_err} errors")
+			log.info(f"📊 Summary: {total_ok + total_err} total products processed across {total_integrations} integration(s)")
+			
+			if total_err == 0:
+				log.info("✅ All products successfully synced to WooCommerce!")
+			else:
+				log.warning(f"⚠️  {total_err} products failed to sync. Check logs for details.")
+			
 			return 0 if total_err == 0 else 2
 	except Exception as e:
 		log.error(f"Fatal error: {e}")
