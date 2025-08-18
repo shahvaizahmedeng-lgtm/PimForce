@@ -96,6 +96,8 @@ new class extends Component {
     ];
     public array $fieldMappings = [];
 
+    public $selectedStoreData = null;
+
     public function mount()
     {
         // Load any existing integration data from session if editing
@@ -292,6 +294,11 @@ new class extends Component {
         ]);
 
         try {
+            // Debug: log integrationName and webshopUrl before saving
+            \Log::info('DEBUG integrationName/webshopUrl', [
+                'integrationName' => $this->integrationName,
+                'webshopUrl' => $this->webshopUrl,
+            ]);
             // Prepare JSON data according to new structure
             $integrationDetails = [
                 'integrationName' => $this->integrationName,
@@ -310,6 +317,14 @@ new class extends Component {
                 'identifier' => $this->uniqueIdentifier,
                 'identificationType' => $this->identificationType,
             ];
+
+            // Build fields mapping data
+            $fieldsMappingData = [];
+            foreach ($this->fields as $index => $field) {
+                if (!empty($this->fieldMappings[$index])) {
+                    $fieldsMappingData[$field] = $this->fieldMappings[$index];
+                }
+            }
 
             $internalFields = [
                 'fieldName' => $this->fieldName,
@@ -344,16 +359,42 @@ new class extends Component {
                 'keywords' => $this->keywords,
             ];
 
+            // Build specifications data for selected product conditions
+            $selectedSpecs = [];
+            $selectedNames = is_array($this->condition) ? $this->condition : [$this->condition];
+            foreach ($this->specifications as $spec) {
+                if (in_array($spec['Name'], $selectedNames)) {
+                    $selectedSpecs[] = $spec;
+                }
+            }
+
             $integration = Integration::create([
                 'user_id' => Auth::id(),
                 'status' => 'active',
-                'integrationDetails' => $integrationDetails,
-                'apiDetails' => $apiDetails,
-                'store_details' => $this->store_details,
-                'uniqueIdentifier' => $uniqueIdentifier,
-                'internalFields' => $internalFields,
-                'productCondition' => $productCondition,
-                'seo' => $seo,
+                'step' => $this->currentStep,
+                'data' => [
+                    'name' => $this->integrationName,
+                    'description' => $this->description,
+                ],
+                'api_data' => [
+                    'katanaPimUrl' => $this->katanaPimUrl,
+                    'katanaPimApiKey' => $this->katanaPimApiKey,
+                    'webshopUrl' => $this->webshopUrl,
+                    'wooCommerceApiKey' => $this->wooCommerceApiKey,
+                    'wooCommerceApiSecret' => $this->wooCommerceApiSecret,
+                ],
+                'store_data' => $this->selectedStoreData,
+                'unique_identifier' => [
+                    'katanaPim' => $this->uniqueIdentifier,
+                    'wooComerce' => $this->identificationType,
+                ],
+                'fields_mapping_data' => $fieldsMappingData,
+                'specifications' => $selectedSpecs,
+                'seo_data' => [
+                    'metaTitle' => $this->metaTitle,
+                    'metaDescription' => $this->metaDescription,
+                    'slug' => $this->keywords,
+                ]
             ]);
 
             // Clear the draft session after successful save
@@ -584,6 +625,11 @@ new class extends Component {
                     'store_url' => '',
                     'store_description' => $selectedStore['SystemName'],
                     'store_id' => $selectedStore['Id']
+                ];
+                $this->selectedStoreData = [
+                    'Id' => $selectedStore['Id'],
+                    'SystemName' => $selectedStore['SystemName'],
+                    'Name' => $selectedStore['Name'],
                 ];
             }
         }
@@ -995,7 +1041,7 @@ new class extends Component {
                                     font-size: 0.875rem;
                                             background-color: white;
                                 ">
-                                            <option value="SKU-1">SKU-1</option>
+                                            <option value="SKU-1" selected>SKU-1</option>
                                             <option value="GTIN">GTIN</option>
                                             <option value="Externalkey">Externalkey</option>
                                         </select>

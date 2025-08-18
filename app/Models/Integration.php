@@ -13,25 +13,26 @@ class Integration extends Model
     protected $fillable = [
         'user_id',
         'status',
-        'integrationDetails',
-        'apiDetails',
-        'store_details',
-        'uniqueIdentifier',
-        'internalFields',
-        'productCondition',
-        'seo',
+        'step',
+        'data',
+        'api_data',
+        'store_data',
+        'unique_identifier',
+        'fields_mapping_data',
+        'specifications',
+        'seo_data',
     ];
 
     protected $casts = [
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
-        'integrationDetails' => 'array',
-        'apiDetails' => 'array',
-        'store_details' => 'array',
-        'uniqueIdentifier' => 'array',
-        'internalFields' => 'array',
-        'productCondition' => 'array',
-        'seo' => 'array',
+        'data' => 'array',
+        'api_data' => 'array',
+        'store_data' => 'array',
+        'unique_identifier' => 'array',
+        'fields_mapping_data' => 'array',
+        'specifications' => 'array',
+        'seo_data' => 'array',
     ];
 
     /**
@@ -43,7 +44,7 @@ class Integration extends Model
 
         static::retrieved(function ($model) {
             // Ensure JSON fields are always arrays, not null
-            $jsonFields = ['integrationDetails', 'apiDetails', 'store_details', 'uniqueIdentifier', 'internalFields', 'productCondition', 'seo'];
+            $jsonFields = ['data', 'api_data', 'store_data', 'unique_identifier', 'fields_mapping_data', 'specifications', 'seo_data'];
             
             foreach ($jsonFields as $field) {
                 if ($model->$field === null) {
@@ -94,7 +95,7 @@ class Integration extends Model
      */
     public function getIntegrationNameAttribute()
     {
-        return $this->integrationDetails['integrationName'] ?? null;
+        return $this->data['integrationName'] ?? null;
     }
 
     /**
@@ -102,7 +103,7 @@ class Integration extends Model
      */
     public function getDescriptionAttribute()
     {
-        return $this->integrationDetails['integrationDesc'] ?? null;
+        return $this->data['integrationDesc'] ?? null;
     }
 
     /**
@@ -110,7 +111,7 @@ class Integration extends Model
      */
     public function getKatanaPimUrlAttribute()
     {
-        return $this->getSafeString('apiDetails', 'katanaPimUrl', null);
+        return $this->getSafeString('api_data', 'katanaPimUrl', null);
     }
 
     /**
@@ -118,7 +119,7 @@ class Integration extends Model
      */
     public function getKatanaPimApiKeyAttribute()
     {
-        return $this->getSafeString('apiDetails', 'katanaPimApiKey', null);
+        return $this->getSafeString('api_data', 'katanaPimApiKey', null);
     }
 
     /**
@@ -126,7 +127,7 @@ class Integration extends Model
      */
     public function getWebshopUrlAttribute()
     {
-        return $this->getSafeString('apiDetails', 'webshopUrl', null);
+        return $this->getSafeString('api_data', 'webshopUrl', null);
     }
 
     /**
@@ -134,7 +135,7 @@ class Integration extends Model
      */
     public function getWooCommerceApiKeyAttribute()
     {
-        return $this->getSafeString('apiDetails', 'wooCommerceApiKey', null);
+        return $this->getSafeString('api_data', 'wooCommerceApiKey', null);
     }
 
     /**
@@ -142,7 +143,7 @@ class Integration extends Model
      */
     public function getWooCommerceApiSecretAttribute()
     {
-        return $this->getSafeString('apiDetails', 'wooCommerceApiSecret', null);
+        return $this->getSafeString('api_data', 'wooCommerceApiSecret', null);
     }
 
     /**
@@ -150,7 +151,7 @@ class Integration extends Model
      */
     public function getUniqueIdentifierValueAttribute()
     {
-        return $this->getSafeString('uniqueIdentifier', 'identifier', null);
+        return $this->unique_identifier['identifier'] ?? null;
     }
 
     /**
@@ -158,7 +159,7 @@ class Integration extends Model
      */
     public function getIdentificationTypeAttribute()
     {
-        return $this->getSafeString('uniqueIdentifier', 'identificationType', null);
+        return $this->unique_identifier['identificationType'] ?? null;
     }
 
     /**
@@ -166,7 +167,7 @@ class Integration extends Model
      */
     public function getProductConditionValueAttribute()
     {
-        return $this->getSafeString('productCondition', 'condition', null);
+        return $this->data['productCondition'] ?? null;
     }
 
     /**
@@ -174,7 +175,7 @@ class Integration extends Model
      */
     public function getProductConditionValueStringAttribute()
     {
-        return $this->getSafeString('productCondition', 'conditionValue', null);
+        return $this->data['conditionValue'] ?? null;
     }
 
     /**
@@ -182,7 +183,7 @@ class Integration extends Model
      */
     public function getStoreNameAttribute()
     {
-        return $this->getSafeString('store_details', 'store_name', null);
+        return $this->store_data['store_name'] ?? null;
     }
 
     /**
@@ -190,6 +191,6 @@ class Integration extends Model
      */
     public function getStoreTypeAttribute()
     {
-        return $this->getSafeString('store_details', 'store_type', null);
+        return $this->store_data['store_type'] ?? null;
     }
 }
