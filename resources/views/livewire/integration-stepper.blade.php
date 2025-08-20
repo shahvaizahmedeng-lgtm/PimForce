@@ -385,8 +385,8 @@ new class extends Component {
                 ],
                 'store_data' => $this->selectedStoreData,
                 'unique_identifier' => [
-                    'katanaPim' => $this->uniqueIdentifier,
-                    'wooComerce' => $this->identificationType,
+                    'identifier' => $this->uniqueIdentifier,
+                    'identificationType' => $this->identificationType,
                 ],
                 'fields_mapping_data' => $fieldsMappingData,
                 'specifications' => $selectedSpecs,
@@ -1041,7 +1041,7 @@ new class extends Component {
                                     font-size: 0.875rem;
                                             background-color: white;
                                 ">
-                                            <option value="SKU-1" selected>SKU-1</option>
+                                            <option value="SKU-1" selected >SKU-1</option>
                                             <option value="GTIN">GTIN</option>
                                             <option value="Externalkey">Externalkey</option>
                                         </select>

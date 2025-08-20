@@ -36,6 +36,7 @@ import time
 import argparse
 import logging
 from typing import Any, Dict, Iterable, List, Optional, Tuple
+from datetime import datetime
 
 # Optional .env support
 try:
@@ -144,18 +145,19 @@ def extract_integration_config(row: Dict[str, Any]) -> Dict[str, Any]:
 		"woo_key": coalesce(api_details.get("wooCommerceApiKey"), (api_details or {}).get("wooApiKey")),
 		"woo_secret": coalesce(api_details.get("wooCommerceApiSecret"), (api_details or {}).get("wooApiSecret")),
 		"selected_store": row.get("store_data"),
-		"store_id": (store_details or {}).get("id"),
-		"unique_identifier": "SKU-1",
+		"store_id": store_details.get("Id"),
+		# "unique_identifier": "SKU-1",
 		"field_mappings": row.get("fields_mapping_data"),
 		"seo_data": row.get("seo_data"),
-		# "unique_identifier": unique_identifier.get("katanaPim") or "SKU-1",
+		"specifications": row.get("specifications"),
+		"unique_identifier": (unique_identifier.get("identifier") if isinstance(unique_identifier, dict) else unique_identifier) or "SKU-1",
 	}
 
 	# Ensure Katana endpoint ends with /api/v1/product
 	if cfg["katana_url"]:
 		base = cfg["katana_url"].rstrip('/')
-		if not base.endswith('/api/v1/product?id=11683'):
-			base = base + '/api/v1/product?id=11683'
+		if not base.endswith('/api/v1/product'):
+			base = base + f'/api/v1/product?storeId={cfg["store_id"]}'
 		cfg["katana_url"] = base
 
 	return cfg
@@ -321,6 +323,32 @@ def map_product_to_woo(cfg: Dict[str, Any], product: Dict[str, Any]) -> Dict[str
 				categories.append({"name": str(name_val)})
 		else:
 			categories.append({"name": str(cat)})
+
+	# --- Add categories from cfg["specifications"] if present in product ---
+	specs = cfg.get("specifications")
+	if specs:
+		# Parse if it's a JSON string
+		if isinstance(specs, str):
+			try:
+				specs = json.loads(specs)
+			except Exception:
+				specs = []
+		# Ensure it's a list
+		if isinstance(specs, dict):
+			specs = [specs]
+		if isinstance(specs, list):
+			product_specs = get_path(product, "Collections.Specs", []) or []
+			for spec in specs:
+				spec_id = spec.get("Id")
+				for prod_spec in product_specs:
+					if isinstance(prod_spec, dict) and prod_spec.get("Id") == spec_id:
+						category_obj = {
+							"id": spec_id,
+							"name": spec.get("Name"),
+							"slug": spec.get("Code"),
+						}
+						if category_obj not in categories:
+							categories.append(category_obj)
 
 	# Attributes (GTIN + specs)
 	attributes: List[Dict[str, Any]] = []
