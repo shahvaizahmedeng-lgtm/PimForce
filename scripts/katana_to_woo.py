@@ -2,17 +2,18 @@
 """
 KatanaPIM -> WooCommerce sync (Python)
 
-- Reads active integrations from PostgreSQL table `public.integrations`
+- Reads active integrations from database table `integrations`
 - For each integration, fetches products from KatanaPIM
 - Upserts into WooCommerce using SKU as the unique identifier
 
 Environment variables (defaults shown):
+  DB_CONNECTION=postgres   # postgres or mysql
   DB_HOST=127.0.0.1
-  DB_PORT=5432
+  DB_PORT=5432             # 5432 for postgres, 3306 for mysql
   DB_USERNAME=postgres
   DB_PASSWORD=1234
   DB_DATABASE=PIMFORCE
-  DB_SSLMODE=prefer
+  DB_SSLMODE=prefer        # postgres only
   SSL_VERIFY=true            # Set to false to disable HTTPS verification (dev only)
   REQUEST_TIMEOUT=120        # HTTP timeout in seconds
 
@@ -49,6 +50,14 @@ import psycopg
 from psycopg.rows import dict_row
 import requests
 
+# Optional MySQL support
+try:
+	import pymysql  # type: ignore
+	from pymysql.cursors import DictCursor as MySqlDictCursor  # type: ignore
+	_HAS_PYMYSQL = True
+except Exception:
+	_HAS_PYMYSQL = False
+
 
 # ---------------------- Logging ----------------------
 
@@ -67,25 +76,59 @@ log = get_logger()
 
 # ---------------------- Config / DB ----------------------
 
-def get_db_conn() -> psycopg.Connection:
+def get_db_conn():
+	"""Create a DB connection for either Postgres or MySQL based on DB_CONNECTION."""
+	driver = (os.environ.get("DB_CONNECTION", "postgres") or "postgres").lower()
 	host = os.environ.get("DB_HOST", "127.0.0.1")
-	port = int(os.environ.get("DB_PORT", "5432"))
 	user = os.environ.get("DB_USERNAME", "postgres")
 	password = os.environ.get("DB_PASSWORD", "1234")
 	dbname = os.environ.get("DB_DATABASE", "PIMFORCE")
-	sslmode = os.environ.get("DB_SSLMODE", "prefer")
 
-	conninfo = f"host={host} port={port} user={user} password={password} dbname={dbname} sslmode={sslmode}"
-	return psycopg.connect(conninfo)
+	if driver in ("mysql", "mariadb"):
+		if not _HAS_PYMYSQL:
+			raise RuntimeError("PyMySQL is required for DB_CONNECTION=mysql. Please install 'PyMySQL'.")
+		port = int(os.environ.get("DB_PORT", "3306"))
+		return pymysql.connect(
+			host=host,
+			port=port,
+			user=user,
+			password=password,
+			database=dbname,
+			charset="utf8mb4",
+			cursorclass=MySqlDictCursor,
+			autocommit=True,
+		)
+	else:
+		port = int(os.environ.get("DB_PORT", "5432"))
+		sslmode = os.environ.get("DB_SSLMODE", "prefer")
+		conninfo = f"host={host} port={port} user={user} password={password} dbname={dbname} sslmode={sslmode}"
+		return psycopg.connect(conninfo)
 
 
-def fetch_integrations(conn: psycopg.Connection, integration_id: Optional[int]) -> List[Dict[str, Any]]:
-	query = "SELECT * FROM public.integrations WHERE status = 'active'"
+def _open_dict_cursor(conn):
+	"""Return a cursor that yields dict rows for both Postgres and MySQL connections."""
+	# psycopg (v3)
+	try:
+		return conn.cursor(row_factory=dict_row)
+	except TypeError:
+		pass
+	# PyMySQL
+	try:
+		return conn.cursor(MySqlDictCursor)
+	except Exception:
+		pass
+	# Fallback to default cursor
+	return conn.cursor()
+
+
+def fetch_integrations(conn, integration_id: Optional[int]) -> List[Dict[str, Any]]:
+	# Avoid Postgres schema-qualification so the query works on MySQL too
+	query = "SELECT * FROM integrations WHERE status = 'active'"
 	params: Tuple[Any, ...] = ()
 	if integration_id is not None:
 		query += " AND id = %s"
 		params = (integration_id,)
-	with conn.cursor(row_factory=dict_row) as cur:
+	with _open_dict_cursor(conn) as cur:
 		cur.execute(query, params)
 		rows = cur.fetchall()
 	return rows
