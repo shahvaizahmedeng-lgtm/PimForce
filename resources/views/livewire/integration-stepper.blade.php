@@ -894,7 +894,7 @@ new class extends Component {
                                                 </div>
                                                 <div>
                                                     <h4 style="font-weight: 600; color: #111827; margin: 0;">{{ $store['Name'] }}</h4>
-                                                    <p style="color: #6b7280; font-size: 0.875rem; margin: 0;">{{ $store['SystemName'] }}</p>
+                                                    <p style="color: #6b7280; font-size: 0.875rem; margin: 0;">{{ $store['SystemName'] ?? '' }}</p>
                                                 </div>
                                             </div>
                                             <p style="color: #6b7280; font-size: 0.875rem; margin: 0;">Store ID: {{ $store['Id'] }}</p>

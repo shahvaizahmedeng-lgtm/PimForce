@@ -18,6 +18,13 @@ class Kernel extends ConsoleKernel
             ->withoutOverlapping()
             ->runInBackground()
             ->appendOutputTo(storage_path('logs/sync-products.log'));
+
+        // Run Katana to Woo Python sync daily at 2am
+        $schedule->command('run:katana-to-woo')
+            ->dailyAt('2:00')
+            ->withoutOverlapping()
+            ->runInBackground()
+            ->appendOutputTo(storage_path('logs/katana_to_woo.log'));
     }
 
     /**

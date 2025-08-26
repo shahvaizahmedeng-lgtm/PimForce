@@ -498,7 +498,7 @@ def process_integration(cfg: Dict[str, Any], dry_run: bool, timeout: int) -> Tup
 			errors += 1
 			log.error(f"[{i}/{total_products}] Failed to upsert product SKU={derive_sku(prod, cfg.get('unique_identifier') or 'SKU-1')}: {e}")
 	
-	log.info(f"✅ Sync completed for integration {cfg['id']}: {success} successful, {errors} errors out of {total_products} total products")
+	log.info(f"Sync completed for integration {cfg['id']}: {success} successful, {errors} errors out of {total_products} total products")
 	return success, errors
 
 
@@ -525,7 +525,7 @@ def main() -> int:
 			total_err = 0
 			total_integrations = len(rows)
 			
-			log.info(f"🚀 Starting sync process for {total_integrations} integration(s)")
+			log.info(f"Starting sync process for {total_integrations} integration(s)")
 			
 			for i, row in enumerate(rows, 1):
 				log.info(f"Processing integration {i}/{total_integrations}: id={row['id']}")
@@ -539,11 +539,11 @@ def main() -> int:
 					log.error(f"Integration id={cfg['id']} failed: {e}")
 					total_err += 1
 
-			log.info(f"🎉 All integrations completed! Total products synced: {total_ok} successful, {total_err} errors")
-			log.info(f"📊 Summary: {total_ok + total_err} total products processed across {total_integrations} integration(s)")
+			log.info(f"All integrations completed! Total products synced: {total_ok} successful, {total_err} errors")
+			log.info(f"Summary: {total_ok + total_err} total products processed across {total_integrations} integration(s)")
 			
 			if total_err == 0:
-				log.info("✅ All products successfully synced to WooCommerce!")
+				log.info("All products successfully synced to WooCommerce!")
 			else:
 				log.warning(f"⚠️  {total_err} products failed to sync. Check logs for details.")
 			
