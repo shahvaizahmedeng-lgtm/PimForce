@@ -173,10 +173,13 @@ def coalesce(*values: Any) -> Any:
 
 def extract_integration_config(row: Dict[str, Any]) -> Dict[str, Any]:
 	"""Normalize integration row into a common config dict."""
+	log.info(f"{type(row)}Row: {row}")
 	api_details = row.get("api_data") or {}
+	log.info(f"API details: {api_details}")
 	store_details = row.get("store_data") or {}
+	log.info(f"Store details: {store_details}")
 	unique_identifier = (
-		row.get("unique_identifier").get("identificationType")
+		row.get("unique_identifier")
 	)
 	log.info(f"Unique identifier: {unique_identifier}")
 
