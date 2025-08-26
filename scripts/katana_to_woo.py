@@ -173,12 +173,12 @@ def coalesce(*values: Any) -> Any:
 
 def extract_integration_config(row: Dict[str, Any]) -> Dict[str, Any]:
 	"""Normalize integration row into a common config dict."""
-	api_details = row.get("api_data") or row.get("apDetails") or {}
+	api_details = row.get("api_data") or {}
 	store_details = row.get("store_data") or {}
 	unique_identifier = (
-		row.get("unique_identifier")
-		or (row.get("uniqueIdentifier") or {}).get("identificationType")
+		row.get("unique_identifier").get("identificationType")
 	)
+	log.info(f"Unique identifier: {unique_identifier}")
 
 	cfg = {
 		"id": row.get("id"),
@@ -195,6 +195,7 @@ def extract_integration_config(row: Dict[str, Any]) -> Dict[str, Any]:
 		"specifications": row.get("specifications"),
 		"unique_identifier": (unique_identifier.get("identifier") if isinstance(unique_identifier, dict) else unique_identifier) or "SKU-1",
 	}
+	log.info(f"Configuration: {cfg}")
 
 	# Ensure Katana endpoint ends with /api/v1/product
 	if cfg["katana_url"]:
