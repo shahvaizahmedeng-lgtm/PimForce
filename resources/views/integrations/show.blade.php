@@ -156,10 +156,10 @@
                         </dl>
                     </div>
                     <div>
-                        <h4 class="text-sm font-medium text-gray-500 uppercase tracking-wider mb-2">Product Condition</h4>
+                        <h4 class="text-sm font-medium text-gray-500 uppercase tracking-wider mb-2">Product Specifications</h4>
                         <dl class="space-y-3">
                             <div>
-                                <dt class="text-sm font-medium text-gray-500">Condition</dt>
+                                <dt class="text-sm font-medium text-gray-800">Condition</dt>
                                 <dd class="text-sm text-gray-900">{{ $integration->productConditionValue ?: 'Not configured' }}</dd>
                             </div>
                             @if($integration->productConditionValueString)

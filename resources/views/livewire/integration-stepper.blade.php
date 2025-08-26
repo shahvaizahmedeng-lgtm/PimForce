@@ -72,29 +72,26 @@ new class extends Component {
     public $selectValue13 = '';
     public $selectValue14 = '';
 
-    public array $fields = [
-        'SKU',
-        'GTIN',
-        'Name',
-        'Short Description',
-        'Full Description',
-        'Meta Title',
-        'Meta Description',
-        'Slug',
-        'Manufacturer Part Number',
-        'Stock Quantity',
-        'Old Price',
-        'Price',
-        'Product Cost',
-        'Special Price',
-        'Manufacturer',
-        'Specifications Array',
-        'Categories Array',
-        'Attachments',
-        'Related Products',
-        'Cross-sell Products',
+    public $fieldPairs = [
+        ['field' => 'SKU', 'mapping' => ''],
+        ['field' => 'GTIN', 'mapping' => ''],
+        ['field' => 'Name', 'mapping' => ''],
+        ['field' => 'Short Description', 'mapping' => ''],
+        ['field' => 'Full Description', 'mapping' => ''],
+        ['field' => 'Slug', 'mapping' => ''],
+        ['field' => 'Manufacturer Part Number', 'mapping' => ''],
+        ['field' => 'Stock Quantity', 'mapping' => ''],
+        ['field' => 'Old Price', 'mapping' => ''],
+        ['field' => 'Price', 'mapping' => ''],
+        ['field' => 'Product Cost', 'mapping' => ''],
+        ['field' => 'Special Price', 'mapping' => ''],
+        ['field' => 'Manufacturer', 'mapping' => ''],
+        ['field' => 'Specifications Array', 'mapping' => ''],
+        ['field' => 'Categories Array', 'mapping' => ''],
+        ['field' => 'Attachments', 'mapping' => ''],
+        ['field' => 'Related Products', 'mapping' => ''],
+        ['field' => 'Cross-sell Products', 'mapping' => ''],
     ];
-    public array $fieldMappings = [];
 
     public $selectedStoreData = null;
 
@@ -129,8 +126,6 @@ new class extends Component {
             'identificationType' => $this->identificationType,
             'condition' => $this->condition,
             'conditionValue' => $this->conditionValue,
-            'metaTitle' => $this->metaTitle,
-            'metaDescription' => $this->metaDescription,
             'keywords' => $this->keywords,
             'katanaPimUrl' => $this->katanaPimUrl,
             'katanaPimApiKey' => $this->katanaPimApiKey,
@@ -320,9 +315,9 @@ new class extends Component {
 
             // Build fields mapping data
             $fieldsMappingData = [];
-            foreach ($this->fields as $index => $field) {
-                if (!empty($this->fieldMappings[$index])) {
-                    $fieldsMappingData[$field] = $this->fieldMappings[$index];
+            foreach ($this->fieldPairs as $pair) {
+                if (!empty($pair['mapping'])) {
+                    $fieldsMappingData[$pair['field']] = $pair['mapping'];
                 }
             }
 
@@ -639,13 +634,9 @@ new class extends Component {
 
     public function removeField($index)
     {
-        if (isset($this->fieldMappings[$index])) {
-            unset($this->fieldMappings[$index]);
-            $this->fieldMappings = array_values($this->fieldMappings);
-        }
-        if (isset($this->fields[$index])) {
-            unset($this->fields[$index]);
-            $this->fields = array_values($this->fields);
+        if (isset($this->fieldPairs[$index])) {
+            unset($this->fieldPairs[$index]);
+            $this->fieldPairs = array_values($this->fieldPairs);
         }
     }
 }; ?>
@@ -689,45 +680,7 @@ new class extends Component {
                     <!-- Step 1: Template -->
                     <div style="display: flex; flex-direction: column; gap: 2rem;">
                         <!-- Template Selection -->
-                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
-                            @for($i = 1; $i <= 1; $i++)
-                                <div style="
-                                    border: 1px solid #e5e7eb; 
-                                    border-radius: 0.5rem; 
-                                    padding: 1.5rem; 
-                                    text-align: center;
-                                ">
-                                    <div style="
-                                        width: 4rem; 
-                                        height: 4rem; 
-                                        background-color: #dbeafe; 
-                                        border-radius: 50%; 
-                                        display: flex; 
-                                        align-items: center; 
-                                        justify-content: center; 
-                                        margin: 0 auto 1rem;
-                                    ">
-                                        <svg style="width: 2rem; height: 2rem; color: #3b82f6;" fill="currentColor" viewBox="0 0 20 20">
-                                            <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"/>
-                                        </svg>
-                                    </div>
-                                    <button style="
-                                        background-color: #9333ea; 
-                                        color: white; 
-                                        padding: 0.5rem 1rem; 
-                                        border-radius: 0.375rem; 
-                                        border: none; 
-                                        font-weight: 500; 
-                                        margin-bottom: 0.5rem; 
-                                        cursor: pointer;
-                                    ">
-                                        WOO
-                                    </button>
-                                    <p style="color: #6b7280; font-size: 0.875rem;">Connect to your store</p>
-                                </div>
-                            @endfor
-                        </div>
-
+                        <!-- Removed select store section (WOO button and Connect to your store) -->
                         <!-- Integration Details Form -->
                         <div style="
                             background-color: white; 
@@ -908,7 +861,7 @@ new class extends Component {
                                             @if($selectedStore === 'new_store')
                                                 Custom store configuration
                                             @else
-                                                Store selected: {{ $selectedStore }}
+                                                Store selected: {{ $store_details['store_name'] ?? $selectedStore }}
                                             @endif
                                         </span>
                                     </div>
@@ -918,13 +871,13 @@ new class extends Component {
                                 @if(!empty($stores))
                                     @foreach($stores as $store)
                                         <div style="
-                                            border: 2px solid #e5e7eb; 
+                                            border: 2px solid {{ $selectedStore === 'store_' . $store['Id'] ? '#0ea5e9' : '#e5e7eb' }};
                                             border-radius: 0.5rem; 
                                             padding: 1.5rem; 
                                             cursor: pointer;
                                             transition: all 0.2s;
-                                            background-color: white;
-                                        " @if($selectedStore === 'store_' . $store['Id']) style="border-color: #9333ea; background-color: #faf5ff;" @endif wire:click="selectStore('store_{{ $store['Id'] }}')">
+                                            background-color: {{ $selectedStore === 'store_' . $store['Id'] ? '#f0f9ff' : 'white' }};
+                                        " wire:click="selectStore('store_{{ $store['Id'] }}')">
                                             <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
                                                 <div style="
                                                     width: 3rem; 
@@ -936,7 +889,7 @@ new class extends Component {
                                                     justify-content: center;
                                                 ">
                                                     <svg style="width: 1.5rem; height: 1.5rem; color: #3b82f6;" fill="currentColor" viewBox="0 0 20 20">
-                                                        <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6z"/>
+                                                        <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"/>
                                                     </svg>
                                                 </div>
                                                 <div>
@@ -1067,50 +1020,50 @@ new class extends Component {
                             <!-- Internal Fields Section -->
                                 <div>
                                 <h4 style="font-size: 1rem; font-weight: 600; color: #111827; margin-bottom: 1rem;">Internal Fields</h4>
-                                <div style="display: flex; flex-direction: column; gap: 1rem;">
-                                    <!-- Field mappings (dynamic) -->
-                                @foreach ($fields as $index => $field)
-                                    <div style="display: grid; grid-template-columns: 1fr auto auto; gap: 1rem; align-items: center;">
-                                        <span style="font-size: 0.875rem; color: #374151;">{{ $field }}</span>
-                                        <select wire:model="fieldMappings.{{ $index }}" style="padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem; font-size: 0.875rem; background-color: white; min-width: 250px;">
-                                            <option value="">Select...</option>
-                                            <option value="SKU">SKU</option>
-                                            <option value="PublishedStatus">PublishedStatus</option>
-                                            <option value="Title">Title</option>
-                                            <option value="ShortDescription">ShortDescription</option>
-                                            <option value="FullDescription">FullDescription</option>
-                                            <option value="MetaTitle">MetaTitle</option>
-                                            <option value="MetaDescription">MetaDescription</option>
-                                            <option value="Slug">Slug</option>
-                                            <option value="GTIN">GTIN</option>
-                                            <option value="UPC">UPC</option>
-                                            <option value="EAN">EAN</option>
-                                            <option value="ISBN">ISBN</option>
-                                            <option value="TaxCategory">TaxCategory</option>
-                                            <option value="ManufacturerPartNumber">ManufacturerPartNumber</option>
-                                            <option value="AvailableStartDate">AvailableStartDate</option>
-                                            <option value="AvailableEndDate">AvailableEndDate</option>
-                                            <option value="StockQuantity">StockQuantity</option>
-                                            <option value="Specifications">Specifications</option>
-                                            <option value="RegularPrice">RegularPrice</option>
-                                            <option value="SalePrice">SalePrice</option>
-                                            <option value="ProductCost">ProductCost</option>
-                                            <option value="Images">Images</option>
-                                            <option value="Categories">Categories</option>
-                                            <option value="RelatedProducts">RelatedProducts</option>
-                                            <option value="CrossSellProducts">CrossSellProducts</option>
-                                            <option value="Attachments">Attachments</option>
-                                            <option value="ProductVisibility">ProductVisibility</option>
-                                            <option value="Upsells">Upsells</option>
-                                            <option value="Length">Length</option>
-                                            <option value="Width">Width</option>
-                                            <option value="Height">Height</option>
-                                            <option value="Weight">Weight</option>
-                                            <option value="Manufacturer">Manufacturer</option>
-                                        </select>
-                                        <button type="button" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 0.25rem;" wire:click="removeField({{ $index }})">✕</button>
-                                    </div>
-                                @endforeach
+                                <div style="display: flex; flex-direction: column; gap: 0;">
+                                    @foreach ($fieldPairs as $index => $pair)
+                                        <div style="display: flex; align-items: center; padding: 1rem 0;">
+                                            <span style="font-size: 0.875rem; color: #374151; flex: 1;">{{ $pair['field'] }}</span>
+                                            <select wire:model="fieldPairs.{{ $index }}.mapping" style="padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem; font-size: 0.875rem; background-color: white; min-width: 250px; margin-right: 1rem;">
+                                                <option value="">Select...</option>
+                                                <option value="SKU">SKU</option>
+                                                <option value="PublishedStatus">PublishedStatus</option>
+                                                <option value="Title">Title</option>
+                                                <option value="ShortDescription">ShortDescription</option>
+                                                <option value="FullDescription">FullDescription</option>
+                                                <option value="Slug">Slug</option>
+                                                <option value="GTIN">GTIN</option>
+                                                <option value="UPC">UPC</option>
+                                                <option value="EAN">EAN</option>
+                                                <option value="ISBN">ISBN</option>
+                                                <option value="TaxCategory">TaxCategory</option>
+                                                <option value="ManufacturerPartNumber">ManufacturerPartNumber</option>
+                                                <option value="AvailableStartDate">AvailableStartDate</option>
+                                                <option value="AvailableEndDate">AvailableEndDate</option>
+                                                <option value="StockQuantity">StockQuantity</option>
+                                                <option value="Specifications">Specifications</option>
+                                                <option value="RegularPrice">RegularPrice</option>
+                                                <option value="SalePrice">SalePrice</option>
+                                                <option value="ProductCost">ProductCost</option>
+                                                <option value="Images">Images</option>
+                                                <option value="Categories">Categories</option>
+                                                <option value="RelatedProducts">RelatedProducts</option>
+                                                <option value="CrossSellProducts">CrossSellProducts</option>
+                                                <option value="Attachments">Attachments</option>
+                                                <option value="ProductVisibility">ProductVisibility</option>
+                                                <option value="Upsells">Upsells</option>
+                                                <option value="Length">Length</option>
+                                                <option value="Width">Width</option>
+                                                <option value="Height">Height</option>
+                                                <option value="Weight">Weight</option>
+                                                <option value="Manufacturer">Manufacturer</option>
+                                            </select>
+                                            <button type="button" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 0.25rem; font-size: 1.25rem;" wire:click="removeField({{ $index }})">✕</button>
+                                        </div>
+                                        @if(!$loop->last)
+                                            <div style="border-bottom: 1px solid #e5e7eb;"></div>
+                                        @endif
+                                    @endforeach
                                 </div>
                             </div>
                     </div>
@@ -1124,11 +1077,11 @@ new class extends Component {
                             
                             <!-- Product Condition Section -->
                             <div style="margin-bottom: 2rem;">
-                                <h4 style="font-size: 1rem; font-weight: 600; color: #111827; margin-bottom: 1rem;">Product Condition</h4>
+                                <h4 style="font-size: 1rem; font-weight: 600; color: #111827; margin-bottom: 1rem;">Product Specifications</h4>
                                 <!-- <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;"> -->
                                         <div>
                                             <label style="display: block; font-size: 0.875rem; font-weight: 500; color: #374151; margin-bottom: 0.5rem;">
-                                            Condition
+                                            Specifications
                                             </label>
                                             <div style="display: flex; gap: 0.5rem; align-items: center;">
                                                 <select wire:model="condition" multiple style="
