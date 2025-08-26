@@ -169,33 +169,46 @@ def coalesce(*values: Any) -> Any:
 	return None
 
 
+def parse_json_field(val, default):
+    if isinstance(val, str):
+        try:
+            return json.loads(val)
+        except Exception:
+            return default
+    return val if val is not None else default
+
+
 # ---------------------- Integration mapping ----------------------
 
 def extract_integration_config(row: Dict[str, Any]) -> Dict[str, Any]:
 	"""Normalize integration row into a common config dict."""
 	log.info(f"{type(row)}Row: {row}")
-	api_details = row.get("api_data") or {}
+
+	api_details = parse_json_field(row.get("api_data"), {})
 	log.info(f"API details: {api_details}")
-	store_details = row.get("store_data") or {}
+
+	store_details = parse_json_field(row.get("store_data"), {})
 	log.info(f"Store details: {store_details}")
-	unique_identifier = (
-		row.get("unique_identifier")
-	)
+
+	unique_identifier = parse_json_field(row.get("unique_identifier"), {})
 	log.info(f"Unique identifier: {unique_identifier}")
+
+	field_mappings = parse_json_field(row.get("fields_mapping_data"), {})
+	seo_data = parse_json_field(row.get("seo_data"), {})
+	specifications = parse_json_field(row.get("specifications"), [])
 
 	cfg = {
 		"id": row.get("id"),
-		"katana_url": coalesce(row.get("katanaPimUrl"), (api_details or {}).get("katanaPimUrl")),
-		"katana_api_key": coalesce(api_details.get("katanaPimApiKey"), (api_details or {}).get("katanaApiKey")),
-		"webshop_url": coalesce(row.get("webshopUrl"), (api_details or {}).get("webshopUrl")),
-		"woo_key": coalesce(api_details.get("wooCommerceApiKey"), (api_details or {}).get("wooApiKey")),
-		"woo_secret": coalesce(api_details.get("wooCommerceApiSecret"), (api_details or {}).get("wooApiSecret")),
-		"selected_store": row.get("store_data"),
+		"katana_url": coalesce(row.get("katanaPimUrl"), api_details.get("katanaPimUrl")),
+		"katana_api_key": coalesce(api_details.get("katanaPimApiKey"), api_details.get("katanaApiKey")),
+		"webshop_url": coalesce(row.get("webshopUrl"), api_details.get("webshopUrl")),
+		"woo_key": coalesce(api_details.get("wooCommerceApiKey"), api_details.get("wooApiKey")),
+		"woo_secret": coalesce(api_details.get("wooCommerceApiSecret"), api_details.get("wooApiSecret")),
+		"selected_store": store_details,
 		"store_id": store_details.get("Id"),
-		# "unique_identifier": "SKU-1",
-		"field_mappings": row.get("fields_mapping_data"),
-		"seo_data": row.get("seo_data"),
-		"specifications": row.get("specifications"),
+		"field_mappings": field_mappings,
+		"seo_data": seo_data,
+		"specifications": specifications,
 		"unique_identifier": (unique_identifier.get("identifier") if isinstance(unique_identifier, dict) else unique_identifier) or "SKU-1",
 	}
 	log.info(f"Configuration: {cfg}")
