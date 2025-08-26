@@ -528,6 +528,7 @@ def main() -> int:
 			log.info(f"Starting sync process for {total_integrations} integration(s)")
 			
 			for i, row in enumerate(rows, 1):
+				log.info(f"Processing row: {row}")
 				log.info(f"Processing integration {i}/{total_integrations}: id={row['id']}")
 				cfg = extract_integration_config(row)
 				log.info(f"Configuration: katana_url={cfg.get('katana_url')} webshop={cfg.get('webshop_url')}")
