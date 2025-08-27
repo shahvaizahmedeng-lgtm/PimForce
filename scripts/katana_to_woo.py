@@ -295,6 +295,7 @@ def find_woo_product_by_sku(s: requests.Session, base_url: str, sku: str, timeou
 
 def create_woo_product(s: requests.Session, base_url: str, product: Dict[str, Any], timeout: int) -> Dict[str, Any]:
 	url = base_url.rstrip('/') + '/wp-json/wc/v3/products'
+	log.info(f"Product: {product}")
 	resp = s.post(url, data=json.dumps(product), timeout=timeout)
 	if resp.status_code not in (200, 201):
 		raise RuntimeError(f"Woo create failed: {resp.status_code} {resp.text[:500]}")
@@ -303,6 +304,7 @@ def create_woo_product(s: requests.Session, base_url: str, product: Dict[str, An
 
 def update_woo_product(s: requests.Session, base_url: str, product_id: int, product: Dict[str, Any], timeout: int) -> Dict[str, Any]:
 	url = base_url.rstrip('/') + f'/wp-json/wc/v3/products/{product_id}'
+	log.info(f"Product: {product}")
 	resp = s.put(url, data=json.dumps(product), timeout=timeout)
 	if resp.status_code not in (200, 201):
 		raise RuntimeError(f"Woo update failed: {resp.status_code} {resp.text[:500]}")
@@ -349,128 +351,130 @@ def get_mapped_field_value(product: Dict[str, Any], field_mappings: Dict[str, st
 
 
 def map_product_to_woo(cfg: Dict[str, Any], product: Dict[str, Any]) -> Dict[str, Any]:
-	log.info(f"map_product_to_woo: {cfg}")
-	
-	field_mappings = cfg.get('field_mappings', {})
-	
-	# Get mapped field values
-	mapped_name = get_mapped_field_value(product, field_mappings, 'Title')
-	name = mapped_name or get_path(product, 'TextFieldsModel.Name') or str(product.get('Id', 'Unknown Product'))
-	
-	mapped_sku = get_mapped_field_value(product, field_mappings, 'SKU')
-	sku = mapped_sku or derive_sku(product, cfg.get('unique_identifier') or 'SKU-1') or ''
-	
-	description = get_path(product, 'TextFieldsModel.FullDescription') or ''
-	short_desc = get_path(product, 'TextFieldsModel.ShortDescription') or ''
+    log.info(f"map_product_to_woo: {cfg}")
+    field_mappings = cfg.get('field_mappings', {})
 
-	regular_price = get_path(product, 'Prices.CurrentPriceBookItem.Price')
-	if not isinstance(regular_price, (int, float, str)):
-		regular_price = get_path(product, 'Prices.PriceBookItems.0.Price')
-	sale_price = get_path(product, 'Prices.SpecialPrice')
+    # Always required for unique identifier
+    unique_identifier = cfg.get('unique_identifier') or 'SKU-1'
+    sku = derive_sku(product, unique_identifier) or ''
 
-	stock_qty = int(get_path(product, 'Stock.TotalStock') or 0)
-	weight = get_path(product, 'Dimensions.Weight')
-	length = get_path(product, 'Dimensions.Length')
-	width = get_path(product, 'Dimensions.Width')
-	height = get_path(product, 'Dimensions.Height')
+    # Build the full WooCommerce product dict as before
+    mapped_name = get_mapped_field_value(product, field_mappings, 'Title')
+    name = mapped_name or get_path(product, 'TextFieldsModel.Name') or str(product.get('Id', 'Unknown Product'))
+    mapped_sku = get_mapped_field_value(product, field_mappings, 'SKU')
+    sku = mapped_sku or sku
+    description = get_path(product, 'TextFieldsModel.FullDescription') or ''
+    short_desc = get_path(product, 'TextFieldsModel.ShortDescription') or ''
+    regular_price = get_path(product, 'Prices.CurrentPriceBookItem.Price')
+    if not isinstance(regular_price, (int, float, str)):
+        regular_price = get_path(product, 'Prices.PriceBookItems.0.Price')
+    sale_price = get_path(product, 'Prices.SpecialPrice')
+    stock_qty = int(get_path(product, 'Stock.TotalStock') or 0)
+    weight = get_path(product, 'Dimensions.Weight')
+    length = get_path(product, 'Dimensions.Length')
+    width = get_path(product, 'Dimensions.Width')
+    height = get_path(product, 'Dimensions.Height')
+    categories = []
+    for cat in get_path(product, 'Collections.Categories', []) or []:
+        if isinstance(cat, dict):
+            name_val = cat.get('Name')
+            if name_val:
+                categories.append({"name": str(name_val)})
+        else:
+            categories.append({"name": str(cat)})
+    specs = cfg.get("specifications")
+    if specs:
+        if isinstance(specs, str):
+            try:
+                specs = json.loads(specs)
+            except Exception:
+                specs = []
+        if isinstance(specs, dict):
+            specs = [specs]
+        if isinstance(specs, list):
+            product_specs = get_path(product, "Collections.Specs", []) or []
+            for spec in specs:
+                spec_id = spec.get("Id")
+                for prod_spec in product_specs:
+                    if isinstance(prod_spec, dict) and prod_spec.get("Id") == spec_id:
+                        category_obj = {
+                            "id": spec_id,
+                            "name": spec.get("Name"),
+                            "slug": spec.get("Code"),
+                        }
+                        if category_obj not in categories:
+                            categories.append(category_obj)
+    attributes = []
+    gtin = get_mapped_field_value(product, field_mappings, 'GTIN') or get_path(product, 'TextFieldsModel.Gtin')
+    if gtin:
+        attributes.append({"name": "GTIN", "visible": True, "variation": False, "options": [str(gtin)]})
+    for spec in get_path(product, 'Collections.Specs', []) or []:
+        if isinstance(spec, dict):
+            name_val = spec.get('Name')
+            option = spec.get('OptionName')
+            if name_val and option:
+                attributes.append({
+                    "name": str(name_val),
+                    "visible": True,
+                    "variation": False,
+                    "options": [str(option)],
+                })
+    meta_data = []
+    if 'Id' in product:
+        meta_data.append({"key": "katana_id", "value": str(product['Id'])})
+    if 'ExternalKey' in product:
+        meta_data.append({"key": "katana_external_key", "value": str(product['ExternalKey'])})
+    if gtin:
+        meta_data.append({"key": "gtin", "value": str(gtin)})
 
-	# Categories
-	categories: List[Dict[str, Any]] = []
-	for cat in get_path(product, 'Collections.Categories', []) or []:
-		if isinstance(cat, dict):
-			name_val = cat.get('Name')
-			if name_val:
-				categories.append({"name": str(name_val)})
-		else:
-			categories.append({"name": str(cat)})
+    # Build the full product dict
+    full_woo_product = {
+        "name": str(name),
+        "type": "simple",
+        "status": "publish",
+        "catalog_visibility": "visible",
+        "description": str(description),
+        "short_description": str(short_desc),
+        "sku": str(sku),
+        "regular_price": str(regular_price) if regular_price is not None else None,
+        "sale_price": str(sale_price) if sale_price is not None else None,
+        "manage_stock": True,
+        "stock_quantity": stock_qty,
+        "stock_status": "instock" if stock_qty > 0 else "outofstock",
+        "weight": str(weight) if weight is not None else None,
+        "dimensions": {
+            "length": str(length) if length is not None else None,
+            "width": str(width) if width is not None else None,
+            "height": str(height) if height is not None else None,
+        },
+        "categories": categories,
+        "attributes": attributes,
+        "meta_data": meta_data,
+    }
 
-	# --- Add categories from cfg["specifications"] if present in product ---
-	specs = cfg.get("specifications")
-	if specs:
-		# Parse if it's a JSON string
-		if isinstance(specs, str):
-			try:
-				specs = json.loads(specs)
-			except Exception:
-				specs = []
-		# Ensure it's a list
-		if isinstance(specs, dict):
-			specs = [specs]
-		if isinstance(specs, list):
-			product_specs = get_path(product, "Collections.Specs", []) or []
-			for spec in specs:
-				spec_id = spec.get("Id")
-				for prod_spec in product_specs:
-					if isinstance(prod_spec, dict) and prod_spec.get("Id") == spec_id:
-						category_obj = {
-							"id": spec_id,
-							"name": spec.get("Name"),
-							"slug": spec.get("Code"),
-						}
-						if category_obj not in categories:
-							categories.append(category_obj)
+    # If field_mappings is empty, only sync the unique identifier (SKU)
+    if not field_mappings:
+        filtered_woo_product = {"sku": str(sku)} if sku else {}
+    else:
+        # Only include mapped fields (plus always the unique identifier/SKU if mapped)
+        mapped_woo_fields = set(field_mappings.values())
+        filtered_woo_product = {k: v for k, v in full_woo_product.items() if k in mapped_woo_fields}
+        # Always include sku if mapped
+        if "sku" in full_woo_product and "sku" not in filtered_woo_product and "SKU" in field_mappings.values():
+            filtered_woo_product["sku"] = full_woo_product["sku"]
 
-	# Attributes (GTIN + specs)
-	attributes: List[Dict[str, Any]] = []
-	gtin = get_mapped_field_value(product, field_mappings, 'GTIN') or get_path(product, 'TextFieldsModel.Gtin')
-	if gtin:
-		attributes.append({"name": "GTIN", "visible": True, "variation": False, "options": [str(gtin)]})
-	for spec in get_path(product, 'Collections.Specs', []) or []:
-		if isinstance(spec, dict):
-			name_val = spec.get('Name')
-			option = spec.get('OptionName')
-			if name_val and option:
-				attributes.append({
-					"name": str(name_val),
-					"visible": True,
-					"variation": False,
-					"options": [str(option)],
-				})
+    # Remove null/empty fields recursively where appropriate
+    def _clean(obj: Any) -> Any:
+        if isinstance(obj, dict):
+            return {k: _clean(v) for k, v in obj.items() if v not in (None, "")}
+        if isinstance(obj, list):
+            return [
+                _clean(v) for v in obj
+                if not (v is None or (isinstance(v, str) and v == "") or (isinstance(v, dict) and not v) or (isinstance(v, list) and not v))
+            ]
+        return obj
 
-	meta_data: List[Dict[str, Any]] = []
-	if 'Id' in product:
-		meta_data.append({"key": "katana_id", "value": str(product['Id'])})
-	if 'ExternalKey' in product:
-		meta_data.append({"key": "katana_external_key", "value": str(product['ExternalKey'])})
-	if gtin:
-		meta_data.append({"key": "gtin", "value": str(gtin)})
-
-	woo_product = {
-		"name": str(name),
-		"type": "simple",
-		"status": "publish",
-		"catalog_visibility": "visible",
-		"description": str(description),
-		"short_description": str(short_desc),
-		"sku": str(sku),
-		"regular_price": str(regular_price) if regular_price is not None else None,
-		"sale_price": str(sale_price) if sale_price is not None else None,
-		"manage_stock": True,
-		"stock_quantity": stock_qty,
-		"stock_status": "instock" if stock_qty > 0 else "outofstock",
-		"weight": str(weight) if weight is not None else None,
-		"dimensions": {
-			"length": str(length) if length is not None else None,
-			"width": str(width) if width is not None else None,
-			"height": str(height) if height is not None else None,
-		},
-		"categories": categories,
-		"attributes": attributes,
-		"meta_data": meta_data,
-	}
-
-	# Remove null/empty fields recursively where appropriate
-	def _clean(obj: Any) -> Any:
-		if isinstance(obj, dict):
-			return {k: _clean(v) for k, v in obj.items() if v not in (None, "")}
-		if isinstance(obj, list):
-			return [
-				_clean(v) for v in obj
-				if not (v is None or (isinstance(v, str) and v == "") or (isinstance(v, dict) and not v) or (isinstance(v, list) and not v))
-			]
-		return obj
-
-	return _clean(woo_product)
+    return _clean(filtered_woo_product)
 
 
 # ---------------------- Main flow ----------------------
